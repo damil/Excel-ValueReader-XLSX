@@ -2,6 +2,7 @@ use utf8;
 use strict;
 use warnings;
 use Test::More;
+use List::Util                qw/max/;
 use Module::Load::Conditional qw/check_install/;
 
 use lib "../lib";
@@ -14,12 +15,13 @@ my @expected_values      = (  ["Hello", undef, undef, 22, 33, 55],
                               [123],
                               ["This is bold text"],
                               ["This is a Unicode string €"],
-                              undef,
+                              [],
                               [undef, "after an empty row and col",
                                undef, undef, undef,
                                "Hello after an empty row and col"],
                              );
-my @backends = ('Regex', check_install(module => 'XML::LibXML::Reader') ? 'Libxml' : ());
+my @backends = ('Regex');
+push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
 
 foreach my $backend (@backends) {
 
@@ -29,6 +31,12 @@ foreach my $backend (@backends) {
 
   my $values = $reader->values('Test');
   is_deeply($values, \@expected_values, "values using $backend");
+
+  my $nb_cols = max map {scalar @$_} @$values;
+  is ($nb_cols, 6, "nb_cols using $backend");
+
+  my $empty  = $reader->values('Empty');
+  is_deeply($empty, [], "empty values using $backend");
 }
 
 done_testing();

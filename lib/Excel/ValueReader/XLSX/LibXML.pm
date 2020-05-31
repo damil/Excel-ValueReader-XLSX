@@ -1,28 +1,21 @@
-package Excel::ValueReader::XLSX::Libxml;
+package Excel::ValueReader::XLSX::LibXML;
 use utf8;
 use Moose;
 use XML::LibXML::Reader;
 
 our $VERSION = '1.0';
 
+#======================================================================
+# ATTRIBUTES
+#======================================================================
 
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
-                    required => 1,
+                    required => 1, weak_ref => 1,
                     handles => [qw/sheet_member _member_contents strings A1_to_num/]);
 
-
-sub _reader_for_member {
-  my ($self, $member) = @_;
-
-  my $reader = XML::LibXML::Reader->new(string     => $self->_member_contents($member),
-                                        no_blanks  => 1,
-                                        no_network => 1,
-                                        huge       => 1);
-  return $reader;
-}
-
-
-
+#======================================================================
+# LAZY ATTRIBUTE CONSTRUCTORS
+#======================================================================
 
 sub _strings {
   my $self = shift;
@@ -49,8 +42,6 @@ sub _strings {
 }
 
 
-
-
 sub _sheets {
   my $self = shift;
 
@@ -67,8 +58,19 @@ sub _sheets {
   return \%sheets;
 }
 
+#======================================================================
+# METHODS
+#======================================================================
 
+sub _reader_for_member {
+  my ($self, $member) = @_;
 
+  my $reader = XML::LibXML::Reader->new(string     => $self->_member_contents($member),
+                                        no_blanks  => 1,
+                                        no_network => 1,
+                                        huge       => 1);
+  return $reader;
+}
 
 sub values {
   my ($self, $sheet) = @_;
@@ -147,9 +149,14 @@ sub values {
     }
   }
 
+  # insert arrayrefs for empty rows
+  $_ //= [] foreach @data;
+
   return \@data;
 }
 
-
 1;
+
+
+__END__
 

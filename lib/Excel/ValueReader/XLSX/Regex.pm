@@ -2,8 +2,11 @@ package Excel::ValueReader::XLSX::Regex;
 use utf8;
 use Moose;
 
-our $VERSION = '1.0';
+#======================================================================
+# GLOBAL VARIABLES
+#======================================================================
 
+our $VERSION = '1.0';
 
 my %xml_entities   = ( amp  => '&',
                        lt   => '<',
@@ -13,22 +16,35 @@ my %xml_entities   = ( amp  => '&',
 my $entity_names   = join '|', keys %xml_entities;
 my $regex_entities = qr/&($entity_names);/;
 
+#======================================================================
+# ATTRIBUTES
+#======================================================================
 
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
-                    required => 1,
+                    required => 1, weak_ref => 1,
                     handles => [qw/sheet_member _member_contents strings A1_to_num/]);
 
+#======================================================================
+# LAZY ATTRIBUTE CONSTRUCTORS
+#======================================================================
 
 sub _strings {
   my $self = shift;
+  my @strings;
 
+  # read from the sharedStrings zip member
   my $contents = $self->_member_contents('xl/sharedStrings.xml');
 
-  my @strings;
+  # iterate on <si> nodes
   while ($contents =~ m[<si>(.*?)</si>]g) {
     my $innerXML = $1;
-    my ($string) = join "", ($innerXML =~ m[<t[^>]*>(.+?)</t>]g);
+
+    # concatenate contents from all <t> nodes (usually there is only 1)
+    my $string   = join "", ($innerXML =~ m[<t[^>]*>(.+?)</t>]g);
+
+    # decode entities
     $string =~ s/$regex_entities/$xml_entities{$1}/eg;
+
     push @strings, $string;
   }
 
@@ -40,12 +56,19 @@ sub _strings {
 sub _sheets {
   my $self = shift;
 
+  # read from the workbook.xml zip member
   my $contents = $self->_member_contents('xl/workbook.xml');
 
+  # global regex match to gather pairs of names and ids
   my %sheets = ($contents =~ m[<sheet name="(.+?)" sheetId="(\d+)".*?>]g);
 
   return \%sheets;
 }
+
+
+#======================================================================
+# METHODS
+#======================================================================
 
 sub values {
   my ($self, $sheet) = @_;
@@ -75,19 +98,27 @@ sub values {
       $val =~ s/$regex_entities/$xml_entities{$1}/eg;
     }
     elsif ($cell_type eq 's') {
-      # this is a string cell; get the real string from the global array of shared strings
+      # this is a string cell; $val is a pointer into the global array of shared strings
       $val = $self->strings->[$val];
     }
     elsif (! defined $val) {
-      # try to find the <v> node -- maybe after a formula node
+      # try to find the <v> node within $innerXML -- maybe after a formula node
       ($val) = ($innerXML =~ m[<v>(.*?)</v>]);
+      $val =~ s/$regex_entities/$xml_entities{$1}/eg if $val;
     }
+
     # insert this value into the global data array
     $data[$row-1][$col-1] = $val;
   }
+
+  # insert arrayrefs for empty rows
+  $_ //= [] foreach @data;
 
   return \@data;
 }
 
 
 1;
+
+__END__
+

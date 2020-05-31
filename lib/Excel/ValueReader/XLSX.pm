@@ -23,7 +23,7 @@ has 'sheets'    => (is => 'ro',   isa => 'HashRef', init_arg => undef,
                     builder => '_sheets',   lazy => 1);
 has 'strings'   => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                     builder => '_strings',   lazy => 1);
-has 'backend'   => (is => 'ro',   isa => 'Ref', 
+has 'backend'   => (is => 'ro',   isa => 'Object',
                     builder => '_backend',   lazy => 1,
                     handles => [qw/_strings _sheets values/]);
 
@@ -31,7 +31,7 @@ has 'backend'   => (is => 'ro',   isa => 'Ref',
 # BUILDING
 #======================================================================
 
-# syntactic sugar for supporting ->new($path) instead of ->new(docx => $path)
+# syntactic sugar for supporting ->new($path) instead of ->new(xlsx => $path)
 around BUILDARGS => sub {
   my $orig  = shift;
   my $class = shift;
@@ -43,7 +43,6 @@ around BUILDARGS => sub {
     return $class->$orig(@_);
   }
 };
-
 
 
 #======================================================================
@@ -69,7 +68,6 @@ sub _backend {
 
   return $backend_class->new(frontend => $self);
 }
-
 
 
 #======================================================================
@@ -110,7 +108,7 @@ sub sheet_member {
   $id //= $sheet if $sheet =~ /^\d+$/;
   $id or die "no such sheet: $sheet";
 
-
+  # construct member name for that sheet
   return "xl/worksheets/sheet$id.xml";
 }
 
@@ -118,8 +116,10 @@ sub sheet_member {
 sub A1_to_num { # convert Excel A1 reference format to a number
   my ($self, $string) = @_;;
 
+  # ordinal number for character just before 'A'
   state $base = ord('A') - 1;
 
+  # iterate on 'digits' (letters of the A1 cell reference)
   my $num = 0;
   foreach my $digit (map {ord($_) - $base} split //, $string) {
     $num = $num*26 + $digit;
@@ -127,22 +127,6 @@ sub A1_to_num { # convert Excel A1 reference format to a number
 
   return $num;
 }
-
-
-
-
-
-1;
-
-
-=cut
-
-
-
-
-
-
-
 
 
 1;
@@ -155,10 +139,15 @@ Excel::ValueReader::XLSX -- extracting values from Excel workbooks in XLSX forma
 
 =head1 SYNOPSIS
 
-  my $extractor = Excel::ValueReader::XLSX->new(xlsx => $filename);
-
-  foreach my $sheet_name ($extractor->sheet_names) {
-     my $grid = $extractor->values($sheet_name);
+  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename);
+  # .. or with syntactic sugar
+  my $reader = Excel::ValueReader::XLSX->new($filename);
+  # .. or with LibXML backend
+  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename,
+                                             using => 'LibXML');
+  
+  foreach my $sheet_name ($reader->sheet_names) {
+     my $grid = $reader->values($sheet_name);
      my $n_rows = @$grid;
      print "sheet $sheet_name has $n_rows rows; ",
            "first cell contains : ", $grid->[0][0];
@@ -166,25 +155,94 @@ Excel::ValueReader::XLSX -- extracting values from Excel workbooks in XLSX forma
 
 =head1 DESCRIPTION
 
-This module reads the contents of an Excel file in XLSX format,
-and returns a bidimensional array of values for each worksheet.
+This module reads the contents of an Excel file in XLSX format;
+given a worksheet name it returns a bidimensional array of values
+in that worksheet.
 
 Unlike L<Spreadsheet::ParseXLSX> or L<Spreadsheet::XLSX>, there is no
-API to read formulas, formats or other Excel information; all you get
-are plain values -- but you get them much faster than with these other modules !
+support for reading formulas, formats or other Excel internal
+information; all you get are plain values -- but you get them much
+faster !
 
+This front module has two different backends for extracting values :
+
+=over
+
+=item Regex (default)
+
+this backend uses regular expressions to parse the XML content.
+
+=item LibXML
+
+this backend uses L<XML::LibXML::Reader> to parse the XML content.
+It is probably safer but about three times slower than the Regex backend
+(but still much faster than L<Spreadsheet::ParseXLSX>).
+
+=back
 
 
 =head1 METHODS
+
+=head2 new
+
+  my $reader = Excel::ValueReader::XLSX->new(xlsx  => $filename,
+                                             using => $backend);
+
+The C<xlsx> argument is mandatory and points to the C<.xlsx> file to be parsed.
+The C<using> argument is optional; it specifies the backend to be used for parsing; 
+default is 'Regex'.
+
+As syntactic sugar, a shorter form is admitted :
+
+  my $reader = Excel::ValueReader::XLSX->new($filename);
+
+
+=head2 sheet_names
+
+  my @sheets = $reader->sheet_names;
+
+Returns the list of worksheet names, respecting the order from the Excel file.
+
+=head2 values
+
+  my $grid = $reader->values($sheet);
+
+Returns a bidimensional array of scalars, corresponding to cell
+values in the specified worksheet. The C<$sheet> argument can be either
+a sheet name or a sheet position (starting at 1).
+
+Unlike the original Excel cells, positions in the grid are zero-based,
+so for example the content of cell B3 is in C<< $grid->[1][2] >>.
+The grid is sparse : the size of each row depends on the
+position of the last non-empty cell in that row.
+Thanks to Perl's auto-vivification mechanism, any attempt to access
+a non-existent cell will automatically create the corresponding cell
+within the grid. The number of rows and columns in the grid can be computed
+like this :
+
+  my $nb_rows = @$grid;
+  my $nb_cols = max map {scalar @$_} @$grid; # must import List::Util::max
+
 
 =head1 SEE ALSO
 
 The official reference for OOXML-XLSX format is in
 L<https://www.ecma-international.org/publications/standards/Ecma-376.htm>.
 
-Introductory material can be found at
+Introductory material on XLSX file structure can be found at
 L<http://officeopenxml.com/anatomyofOOXML-xlsx.php>.
 
-Another unpublished but working module for parsing Excel files in perl
+Another unpublished but working module for parsing Excel files in Perl
 can be found at L<https://github.com/jmcnamara/excel-reader-xlsx>.
+Some test cases were borrowed from that distribution.
 
+=head1 AUTHOR
+
+Laurent Dami, E<lt>dami at cpan.orgE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2020 by Laurent Dami.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.

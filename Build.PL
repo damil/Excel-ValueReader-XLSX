@@ -7,10 +7,18 @@ my $builder = Module::Build->new(
     license             => 'perl',
     dist_author         => 'Laurent Dami <dami@cpan.org>',
     dist_version_from   => 'lib/Excel/ValueReader/XLSX.pm',
+    
     requires => {
-      'perl'            => "5.010001",
-      'Try::Tiny'       => 0,
+      'perl'                  => "5.010001",
+      'utf8'                  => 0,
+      'Archive::Zip'          => 0,
+      'Encode'                => 0,
+      'Module::Load'          => 0,
+      'Moose'                 => 0,
      },
+    recommends => {
+      'XML::LibXML::Reader'   => 0,
+     }
     build_requires => {
       'Test::More'   => 0,
     },
