@@ -1,6 +1,10 @@
 package Excel::ValueReader::XLSX::Libxml;
 use utf8;
 use Moose;
+use XML::LibXML::Reader;
+
+our $VERSION = '1.0';
+
 
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
                     required => 1,

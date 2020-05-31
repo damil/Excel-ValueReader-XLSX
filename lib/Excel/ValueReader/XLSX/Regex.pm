@@ -2,6 +2,9 @@ package Excel::ValueReader::XLSX::Regex;
 use utf8;
 use Moose;
 
+our $VERSION = '1.0';
+
+
 my %xml_entities   = ( amp  => '&',
                        lt   => '<',
                        gt   => '>',
@@ -14,18 +17,6 @@ my $regex_entities = qr/&($entity_names);/;
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
                     required => 1,
                     handles => [qw/sheet_member _member_contents strings A1_to_num/]);
-
-
-sub _strings_old {
-  my $self = shift;
-
-  my $contents = $self->_member_contents('xl/sharedStrings.xml');
-
-  my @strings = ($contents =~ m[<t[^>]*>(.+?)</t>]g);
-  $_ =~ s/$regex_entities/$xml_entities{$1}/eg foreach @strings;
-
-  return \@strings;
-}
 
 
 sub _strings {
@@ -43,7 +34,6 @@ sub _strings {
 
   return \@strings;
 }
-
 
 
 

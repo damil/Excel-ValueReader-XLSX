@@ -3,9 +3,10 @@ use utf8;
 use Moose;
 use Archive::Zip          qw(AZ_OK);
 use Encode                qw(decode_utf8);
-use XML::LibXML::Reader;
 use Module::Load          qw/load/;
 use feature 'state';
+
+our $VERSION = '1.0';
 
 #======================================================================
 # ATTRIBUTES

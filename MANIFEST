@@ -1,0 +1,9 @@
+Build.PL
+Changes
+lib/Excel/ValueReader/XLSX.pm
+lib/Excel/ValueReader/XLSX/Libxml.pm
+lib/Excel/ValueReader/XLSX/Regex.pm
+MANIFEST			This list of files
+README.md
+t/valuereader.t
+t/valuereader.xlsx
