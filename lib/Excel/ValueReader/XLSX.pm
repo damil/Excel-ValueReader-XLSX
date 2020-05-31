@@ -2,7 +2,6 @@ package Excel::ValueReader::XLSX;
 use utf8;
 use Moose;
 use Archive::Zip          qw(AZ_OK);
-use Encode                qw(decode_utf8);
 use Module::Load          qw/load/;
 use feature 'state';
 
@@ -54,7 +53,7 @@ sub _zip {
 
   my $zip = Archive::Zip->new;
   $zip->read($self->{xlsx}) == AZ_OK
-      or die "cannot unzip $self->{docx}";
+      or die "cannot unzip $self->{xlsx}";
 
   return $zip;
 }
@@ -87,10 +86,9 @@ sub sheet_names {
 sub _member_contents {
   my ($self, $member) = @_;
 
-  my $bytes    = $self->zip->contents($member)
+  my $contents = $self->zip->contents($member)
     or die "no contents for member $member";
-
-  my $contents = decode_utf8($bytes);
+  utf8::decode($contents);
 
   return $contents;
 }
@@ -135,14 +133,14 @@ __END__
 
 =head1 NAME
 
-Excel::ValueReader::XLSX -- extracting values from Excel workbooks in XLSX format, fast
+Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format, fast
 
 =head1 SYNOPSIS
 
   my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename);
-  # .. or with syntactic sugar
+  # .. or with syntactic sugar :
   my $reader = Excel::ValueReader::XLSX->new($filename);
-  # .. or with LibXML backend
+  # .. or with LibXML backend :
   my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename,
                                              using => 'LibXML');
   
@@ -201,7 +199,7 @@ As syntactic sugar, a shorter form is admitted :
 
   my @sheets = $reader->sheet_names;
 
-Returns the list of worksheet names, respecting the order from the Excel file.
+Returns the list of worksheet names, in the same order as in the Excel file.
 
 =head2 values
 
@@ -224,17 +222,59 @@ like this :
   my $nb_cols = max map {scalar @$_} @$grid; # must import List::Util::max
 
 
+=head1 CAVEAT
+
+This module was optimized for speed, not for completeness of
+OOXML-SpreadsheetML support; so there may be some edge cases where the
+output is incorrect with respect to the original Excel data.
+
+Excel dates are stored internally as numbers, so they will appear as
+numbers in the output. To convert numbers to dates, use the
+L<DateTime::Format::Excel> module. Unfortunately the module has
+currently no support for identifying which cells contain dates; this
+would require to parse cell formats -- maybe this will be implemented
+in a future release.
+
+
 =head1 SEE ALSO
 
-The official reference for OOXML-XLSX format is in
+The official reference for OOXML-SpreadsheetML format is in
 L<https://www.ecma-international.org/publications/standards/Ecma-376.htm>.
 
 Introductory material on XLSX file structure can be found at
 L<http://officeopenxml.com/anatomyofOOXML-xlsx.php>.
 
+The CPAN module L<Data::XLSX::Parser> is claimed to be in alpha stage;
+it seems to be working but the documentation is insufficient -- I had 
+to inspect the test suite to understand how to use it.
+
 Another unpublished but working module for parsing Excel files in Perl
 can be found at L<https://github.com/jmcnamara/excel-reader-xlsx>.
 Some test cases were borrowed from that distribution.
+
+
+=head1 BENCHMARKS
+
+Below are some benchmarks computed with the program C<benchmark.pl> in
+this distribution. The task was to parse an Excel file of five worksheets
+with about 62600 rows in total, and report the number of rows per sheet.
+Reported figures are in seconds.
+
+  Excel::ValueReader::XLSX::Regex    11 elapsed,  10 cpu, 0 system
+  Excel::ValueReader::XLSX::LibXML   35 elapsed,  34 cpu, 0 system
+  [unpublished] Excel::Reader::XLSX  39 elapsed,  37 cpu, 0 system
+  Spreadsheet::ParseXLSX            244 elapsed, 240 cpu, 1 system
+  Data::XLSX::Parser                 37 elapsed,  35 cpu, 0 system
+
+These figures show that the regex version is about 3 times faster
+than the LibXML version, and about 22 times faster than
+L<Spreadsheet::ParseXLSX>. Tests with a bigger file of about 90000 rows
+showed similar ratios.
+
+Modules
+C<Excel::Reader::XLSX> (unpublished) and L<Data::XLSX::Parser>
+are based on L<XML::LibXML> like L<Excel::ValueReader::XLSX::LibXML>;
+execution times for those three modules are very close.
 
 =head1 AUTHOR
 

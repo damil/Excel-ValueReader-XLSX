@@ -48,11 +48,12 @@ sub _sheets {
   my $reader = $self->_reader_for_member('xl/workbook.xml');
   my %sheets;
 
+  my $id = 1;
   while ($reader->read) {
     next unless $reader->name eq 'sheet';
-    my $name = $reader->getAttribute('name')    or die "sheet node without name";
-    my $id   = $reader->getAttribute('sheetId') or die "sheet node without sheetId";
-    $sheets{$name} = $id;
+    my $name = $reader->getAttribute('name')
+      or die "sheet node without name";
+    $sheets{$name} = $id++;
   }
 
   return \%sheets;
@@ -91,9 +92,6 @@ sub values {
       $col            = $self->A1_to_num($col);
       $cell_type      = $reader->getAttribute('t');
       $seen_node      = '';
-
-      # my $xml = $reader->readInnerXml;
-      # $DB::single = 1 if $xml =~ /55/;
     }
 
     elsif ($node_name =~ /^[vtf]$/) {
@@ -127,9 +125,6 @@ sub values {
 
         # insert this value into the global data array
         $data[$row-1][$col-1] = $val;
-
-        # cleanup intermediate state
-        # undef $_ for $row, $col, $cell_type, $seen_node;
       }
 
       elsif ($seen_node eq 't' && $cell_type eq 'inlineStr')  {
@@ -160,3 +155,25 @@ sub values {
 
 __END__
 
+
+=head1 NAME
+
+Excel::ValueReader::XLSX::LibXML - using LibXML for extracting values from Excel workbooks
+
+=head1 DESCRIPTION
+
+This is one of two backend modules for L<Excel::ValueReader::XLSX>; the other
+possible backend is L<Excel::ValueReader::XLSX::Regex>.
+
+This backend parses OOXML structures using L<XML::LibXML::Reader>.
+
+=head1 AUTHOR
+
+Laurent Dami, E<lt>dami at cpan.orgE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2020 by Laurent Dami.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
