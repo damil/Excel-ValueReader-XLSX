@@ -258,6 +258,18 @@ like this :
   my $nb_cols = max map {scalar @$_} @$grid; # must import List::Util::max
 
 
+=head1 AUXILIARY METHODS
+
+=head1 A1_to_num
+
+  my $col_num = $reader->A1_to_num('A');    #   1
+     $col_num = $reader->A1_to_num('AZ');   #  52
+     $col_num = $reader->A1_to_num('AA');   #  26
+     $col_num = $reader->A1_to_num('ABC');  # 731
+
+Converts a column expressed as a sequence of capital letters (in Excel's "A1" notation)
+into the corresponding numeric value.
+
 =head1 CAVEATS
 
 =over
