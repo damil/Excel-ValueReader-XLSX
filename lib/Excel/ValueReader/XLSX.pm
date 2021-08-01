@@ -11,20 +11,44 @@ our $VERSION = '1.01';
 # ATTRIBUTES
 #======================================================================
 
-# public attributes
-has 'xlsx'      => (is => 'ro', isa => 'Str', required => 1);
-has 'using'     => (is => 'ro',   isa => 'Str', default => 'Regex');
+# PUBLIC ATTRIBUTES
+has 'xlsx'          => (is => 'ro',   isa => 'Str', required => 1);      # path of xlsx file
+has 'using'         => (is => 'ro',   isa => 'Str', default => 'Regex'); # name of backend class
 
-# attributes used internally, not documented
-has 'zip'       => (is => 'ro',   isa => 'Archive::Zip', init_arg => undef,
-                    builder => '_zip',   lazy => 1);
-has 'sheets'    => (is => 'ro',   isa => 'HashRef', init_arg => undef,
-                    builder => '_sheets',   lazy => 1);
-has 'strings'   => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
-                    builder => '_strings',   lazy => 1);
-has 'backend'   => (is => 'ro',   isa => 'Object',
-                    builder => '_backend',   lazy => 1,
-                    handles => [qw/_strings _sheets values/]);
+has 'date_formatter' => (is => 'ro',   isa => 'CodeRef',
+                         default => sub {\&ddmmyyyy});
+
+
+
+# ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
+has 'zip'           => (is => 'ro',   isa => 'Archive::Zip', init_arg => undef,
+                        builder => '_zip', lazy => 1);
+
+has 'backend'       => (is => 'ro',   isa => 'Object', init_arg => undef,
+                        builder => '_backend', lazy => 1,
+                        handles => [qw/values _strings _workbook_data/]);
+
+has 'strings'       => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
+                        builder => '_strings',   lazy => 1);
+
+has 'workbook_data' => (is => 'ro',   isa => 'HashRef', init_arg => undef,
+                        builder => '_workbook_data',   lazy => 1);
+
+
+sub ddmmyyyy {
+  my ($y, $m, $d, $h, $min, $s, $ms) = @_;
+
+  my $date = sprintf "%02d.%02d.%04d", $d, $m, $y;
+
+  $date .= sprintf " %02d", $h   if defined $h;
+  $date .= sprintf ":%02d", $min if defined $min;
+  $date .= sprintf ":%02d", $s   if defined $s;
+  $date .= sprintf ".%03d", $ms  if defined $ms;
+
+  return $date;
+}
+
+
 
 #======================================================================
 # BUILDING
@@ -44,8 +68,9 @@ around BUILDARGS => sub {
 };
 
 
+
 #======================================================================
-# LAZY ATTRIBUTE CONSTRUCTORS
+# ATTRIBUTE CONSTRUCTORS
 #======================================================================
 
 sub _zip {
@@ -72,6 +97,17 @@ sub _backend {
 #======================================================================
 # METHODS
 #======================================================================
+
+sub base_year {
+  my ($self) = @_;
+  return $self->workbook_data->{base_year};
+}
+
+sub sheets {
+  my ($self) = @_;
+  return $self->workbook_data->{sheets};
+}
+
 
 sub sheet_names {
   my ($self) = @_;
