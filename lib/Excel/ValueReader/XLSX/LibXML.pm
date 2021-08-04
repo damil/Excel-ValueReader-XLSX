@@ -1,7 +1,9 @@
 package Excel::ValueReader::XLSX::LibXML;
 use utf8;
+use 5.10.1;
 use Moose;
 use XML::LibXML::Reader;
+use Date::Calc qw/Add_Delta_Days/;
 
 our $VERSION = '1.01';
 
@@ -11,7 +13,12 @@ our $VERSION = '1.01';
 
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
                     required => 1, weak_ref => 1,
-                    handles => [qw/sheet_member _member_contents strings A1_to_num/]);
+                    handles => [qw/sheet_member _member_contents strings A1_to_num
+                                   base_year date_formatter/]);
+
+has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
+                      builder => '_date_styles', lazy => 1);
+
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -42,22 +49,100 @@ sub _strings {
 }
 
 
-sub _sheets {
+sub _workbook_data {
   my $self = shift;
 
-  my $reader = $self->_reader_for_member('xl/workbook.xml');
   my %sheets;
+  my $sheet_id  = 1;
+  my $base_year = 1900;
 
-  my $id = 1;
+
+  my $reader = $self->_reader_for_member('xl/workbook.xml');
+
   while ($reader->read) {
-    next unless $reader->name eq 'sheet';
-    my $name = $reader->getAttribute('name')
-      or die "sheet node without name";
-    $sheets{$name} = $id++;
+    if ($reader->name eq 'sheet' && $reader->nodeType == XML_READER_TYPE_ELEMENT) {
+      my $name = $reader->getAttribute('name')
+        or die "sheet node without name";
+      $sheets{$name} = $sheet_id++;
+    }
+    elsif ($reader->name eq 'workbookPr' && $reader->getAttribute('date1904')) {
+      $base_year = 1904; # this workbook uses the 1904 calendar
+    }
   }
 
-  return \%sheets;
+  return {sheets => \%sheets, base_year => $base_year};
 }
+
+sub _date_styles {
+  my $self = shift;
+
+  state $date_style_regex = qr{[dy]|\bmm\b};
+  my @date_styles;
+
+  # read from the styles.xml zip member
+  my $reader = $self->_reader_for_member('xl/styles.xml');
+
+  # start with Excel builtin number formats for dates and times
+  my @numFmt;
+  $numFmt[14] = 'mm-dd-yy';
+  $numFmt[15] = 'd-mmm-yy';
+  $numFmt[16] = 'd-mmm';
+  $numFmt[17] = 'mmm-yy';
+  $numFmt[18] = 'h:mm AM/PM';
+  $numFmt[19] = 'h:mm:ss AM/PM';
+  $numFmt[20] = 'h:mm';
+  $numFmt[21] = 'h:mm:ss';
+  $numFmt[22] = 'm/d/yy h:mm';
+  $numFmt[45] = 'mm:ss';
+  $numFmt[46] = '[h]:mm:ss';
+  $numFmt[47] = 'mmss.0';
+
+  my $expected_subnode = undef;
+
+  # add other date formats explicitly specified in this workbook
+ NODE:
+  while ($reader->read) {
+
+    $reader->nodeType == XML_READER_TYPE_ELEMENT or next NODE;
+
+
+    # special treatment for some specific subtrees
+    if ($expected_subnode) {
+      my ($name, $depth, $handler) = @$expected_subnode;
+      if ($reader->name eq $name && $reader->depth == $depth) {
+        # process that subnode and go to the next node
+        $handler->();
+        next NODE;
+      }
+      elsif ($reader->depth < $depth) {
+        # finished handling subnodes; back to regular node treatment
+        $expected_subnode = undef;
+      }
+    }
+
+    # regular node treatement
+    if ($reader->name eq 'numFmts') {
+      $expected_subnode = [numFmt => $reader->depth+1 => sub {
+                             my $id   = $reader->getAttribute('numFmtId');
+                             my $code = $reader->getAttribute('formatCode');
+                             $numFmt[$id] = $code if $id && $code && $code =~ $date_style_regex;
+                           }];
+    }
+
+    elsif ($reader->name eq 'cellXfs') {
+      $expected_subnode = [xf => $reader->depth+1 => sub {
+                             state $xf_count = 0;
+                             my $numFmtId    = $reader->getAttribute('numFmtId');
+                             my $code        = $numFmt[$numFmtId];
+                             $date_styles[$xf_count++] = $code; # may be undef
+                           }];
+    }
+  }
+
+  return \@date_styles;
+}
+
+
 
 #======================================================================
 # METHODS
@@ -79,7 +164,7 @@ sub values {
   # prepare for traversing the XML structure
   my $reader = $self->_reader_for_member($self->sheet_member($sheet));
   my @data;
-  my ($row, $col, $cell_type, $seen_node);
+  my ($row, $col, $cell_type, $cell_style, $seen_node);
 
   # iterate through XML nodes
   while ($reader->read) {
@@ -91,6 +176,7 @@ sub values {
       ($col, $row)    = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
       $col            = $self->A1_to_num($col);
       $cell_type      = $reader->getAttribute('t');
+      $cell_style     = $reader->getAttribute('s');
       $seen_node      = '';
     }
 
@@ -114,8 +200,13 @@ sub values {
           $val = undef; # error -- silently replace by undef
         }
         elsif ($cell_type =~ /^(n|d|b|str|)$/) {
-          # number, date, boolean, formula string or no type :
-          # nothing to do, content is already in $val
+          # number, date, boolean, formula string or no type : content is already in $val
+
+          # if this is a date, replace the numeric value by the formatted date
+          if ($cell_style && defined $val && $val >= 0) {
+            my $date_style = $self->date_styles->[$cell_style];
+            $val = $self->_formatted_date($val, $date_style)    if $date_style;
+          }
         }
         else {
           # handle unexpected cases
@@ -149,6 +240,35 @@ sub values {
 
   return \@data;
 }
+
+
+
+sub _formatted_date {
+  my ($self, $val, $date_style) = @_;
+
+  state $millisecond = 1 / (24*60*60*1000);
+
+  my $n_days     = int($val);
+  my $fractional = $val - $n_days;
+
+  my $base_year  = $self->base_year;
+
+  $n_days -= 1;                                       # because we need a 0-based value
+  $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
+
+  my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
+
+  foreach my $subdivision (24, 60, 60, 1000) {
+    last if abs($fractional) < $millisecond;
+    $fractional *= $subdivision;
+    my $unit = int($fractional);
+    $fractional -= $unit;
+    push @d, $unit;
+  }
+
+  return $self->date_formatter->(@d);
+}
+
 
 1;
 
