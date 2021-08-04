@@ -205,6 +205,23 @@ sub _formatted_date {
 
 
 
+sub Excel_builtin_date_formats {
+  my @numFmt;
+  $numFmt[14] = 'mm-dd-yy';
+  $numFmt[15] = 'd-mmm-yy';
+  $numFmt[16] = 'd-mmm';
+  $numFmt[17] = 'mmm-yy';
+  $numFmt[18] = 'h:mm AM/PM';
+  $numFmt[19] = 'h:mm:ss AM/PM';
+  $numFmt[20] = 'h:mm';
+  $numFmt[21] = 'h:mm:ss';
+  $numFmt[22] = 'm/d/yy h:mm';
+  $numFmt[45] = 'mm:ss';
+  $numFmt[46] = '[h]:mm:ss';
+  $numFmt[47] = 'mmss.0';
+  return @numFmt;
+}
+
 
 
 1;

@@ -84,19 +84,7 @@ sub _date_styles {
   my $styles = $self->_member_contents('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
-  my @numFmt;
-  $numFmt[14] = 'mm-dd-yy';
-  $numFmt[15] = 'd-mmm-yy';
-  $numFmt[16] = 'd-mmm';
-  $numFmt[17] = 'mmm-yy';
-  $numFmt[18] = 'h:mm AM/PM';
-  $numFmt[19] = 'h:mm:ss AM/PM';
-  $numFmt[20] = 'h:mm';
-  $numFmt[21] = 'h:mm:ss';
-  $numFmt[22] = 'm/d/yy h:mm';
-  $numFmt[45] = 'mm:ss';
-  $numFmt[46] = '[h]:mm:ss';
-  $numFmt[47] = 'mmss.0';
+  my @numFmt = $self->frontend->Excel_builtin_date_formats;
 
   # add other date formats explicitly specified in this workbook
   while ($styles =~ m[<numFmt numFmtId="(\d+)" formatCode="([^"]+)"/>]g) {

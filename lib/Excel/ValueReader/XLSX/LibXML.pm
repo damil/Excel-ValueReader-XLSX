@@ -57,7 +57,6 @@ sub _workbook_data {
   my $sheet_id  = 1;
   my $base_year = 1900;
 
-
   my $reader = $self->_reader_for_member('xl/workbook.xml');
 
  NODE:
@@ -87,19 +86,7 @@ sub _date_styles {
   my $reader = $self->_reader_for_member('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
-  my @numFmt;
-  $numFmt[14] = 'mm-dd-yy';
-  $numFmt[15] = 'd-mmm-yy';
-  $numFmt[16] = 'd-mmm';
-  $numFmt[17] = 'mmm-yy';
-  $numFmt[18] = 'h:mm AM/PM';
-  $numFmt[19] = 'h:mm:ss AM/PM';
-  $numFmt[20] = 'h:mm';
-  $numFmt[21] = 'h:mm:ss';
-  $numFmt[22] = 'm/d/yy h:mm';
-  $numFmt[45] = 'mm:ss';
-  $numFmt[46] = '[h]:mm:ss';
-  $numFmt[47] = 'mmss.0';
+  my @numFmt = $self->frontend->Excel_builtin_date_formats;
 
   my $expected_subnode = undef;
 
@@ -108,7 +95,7 @@ sub _date_styles {
   while ($reader->read) {
     next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
 
-    # special treatment for some specific subtrees
+    # special treatment for some specific subtrees -- see 'numFmt' and 'xf' below
     if ($expected_subnode) {
       my ($name, $depth, $handler) = @$expected_subnode;
       if ($reader->name eq $name && $reader->depth == $depth) {
@@ -135,8 +122,8 @@ sub _date_styles {
       $expected_subnode = [xf => $reader->depth+1 => sub {
                              state $xf_count = 0;
                              my $numFmtId    = $reader->getAttribute('numFmtId');
-                             my $code        = $numFmt[$numFmtId];
-                             $date_styles[$xf_count++] = $code; # may be undef
+                             my $code        = $numFmt[$numFmtId]; # may be undef
+                             $date_styles[$xf_count++] = $code;
                            }];
     }
   }
