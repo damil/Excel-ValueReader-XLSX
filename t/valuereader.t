@@ -85,25 +85,23 @@ my @expected_tab_entities  = (
  );
 
 my @expected_dates_and_times = (
-  [ '10.07.2020',  '10.07.2020',  '01.02.1789', '10.07.2020 02:57',    '31.12.1899 02:57:59'    ], # time should not be date format
+  [ '10.07.2020',  '10.07.2020',  '01.02.1789', '10.07.2020 02:57',    '31.12.1899 02:57:59'    ],
   [ '10.07.2020',  '10.07.2020',  '31.12.1899', '10.07.2020 02:57:59', '31.12.1899 01:23'       ],
   [ '10.07.2020',         undef,  '01.01.1900',                 undef, '31.12.1899 01:26:18.720'],
-  [ '10.07.2020',         undef,  '02.01.1900',                                                     ],
-  [ '10.07.2020',         undef,  '28.02.1900'                                                      ],
-  [ '10.07.2020',         undef,  '01.03.1900'                                                      ],
-  [ '10.07.2020',         undef,  '01.03.1900'                                                      ],
-  [ '10.07.2020',         undef,  '04.04.4444'                                                      ],
-  [ '10.07.2020'                                                                                    ],
-  [ '10.07.2020'                                                                                    ],
-  [ '10.07.2020'                                                                                    ],
+  [ '10.07.2020',         undef,  '02.01.1900',                                                 ],
+  [ '10.07.2020',         undef,  '28.02.1900'                                                  ],
+  [ '10.07.2020',         undef,  '01.03.1900'                                                  ],
+  [ '10.07.2020',         undef,  '01.03.1900'                                                  ],
+  [ '10.07.2020',         undef,  '04.04.4444'                                                  ],
+  [ '10.07.2020'                                                                                ],
+  [ '10.07.2020'                                                                                ],
+  [ '10.07.2020'                                                                                ],
  );
 
 
 
 my @backends = ('Regex');
-
-# TMP HACK
-#push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
+push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
 
 foreach my $backend (@backends) {
 
@@ -132,14 +130,9 @@ foreach my $backend (@backends) {
   my $tab_entities = $reader->values('Tab_entities');
   is_deeply($tab_entities, \@expected_tab_entities, "tab_entities using $backend");
 
-
-  if ($backend eq 'Regex') {
-    my $dates = $reader->values('Dates');
-    is_deeply($dates, \@expected_dates_and_times, "dates using $backend");
-    note explain $dates;
-
-  }
-
+  # check date conversions
+  my $dates = $reader->values('Dates');
+  is_deeply($dates, \@expected_dates_and_times, "dates using $backend");
 }
 
 done_testing();
