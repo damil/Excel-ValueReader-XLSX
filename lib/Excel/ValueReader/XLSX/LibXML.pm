@@ -2,8 +2,7 @@ package Excel::ValueReader::XLSX::LibXML;
 use utf8;
 use 5.10.1;
 use Moose;
-use XML::LibXML::Reader;
-use Date::Calc qw/Add_Delta_Days/;
+use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 our $VERSION = '1.01';
 
@@ -14,7 +13,7 @@ our $VERSION = '1.01';
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
                     required => 1, weak_ref => 1,
                     handles => [qw/sheet_member _member_contents strings A1_to_num
-                                   base_year date_formatter/]);
+                                   base_year _formatted_date/]);
 
 has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                       builder => '_date_styles', lazy => 1);
@@ -31,7 +30,9 @@ sub _strings {
 
   my @strings;
   my $last_string = '';
+ NODE:
   while ($reader->read) {
+    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
     my $node_name = $reader->name;
 
     if ($node_name eq 'si') {
@@ -59,8 +60,11 @@ sub _workbook_data {
 
   my $reader = $self->_reader_for_member('xl/workbook.xml');
 
+ NODE:
   while ($reader->read) {
-    if ($reader->name eq 'sheet' && $reader->nodeType == XML_READER_TYPE_ELEMENT) {
+    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
+
+    if ($reader->name eq 'sheet') {
       my $name = $reader->getAttribute('name')
         or die "sheet node without name";
       $sheets{$name} = $sheet_id++;
@@ -102,9 +106,7 @@ sub _date_styles {
   # add other date formats explicitly specified in this workbook
  NODE:
   while ($reader->read) {
-
-    $reader->nodeType == XML_READER_TYPE_ELEMENT or next NODE;
-
+    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
 
     # special treatment for some specific subtrees
     if ($expected_subnode) {
@@ -167,7 +169,9 @@ sub values {
   my ($row, $col, $cell_type, $cell_style, $seen_node);
 
   # iterate through XML nodes
+ NODE:
   while ($reader->read) {
+    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
     my $node_name = $reader->name;
 
     if ($node_name eq 'c') {
@@ -242,32 +246,6 @@ sub values {
 }
 
 
-
-sub _formatted_date {
-  my ($self, $val, $date_style) = @_;
-
-  state $millisecond = 1 / (24*60*60*1000);
-
-  my $n_days     = int($val);
-  my $fractional = $val - $n_days;
-
-  my $base_year  = $self->base_year;
-
-  $n_days -= 1;                                       # because we need a 0-based value
-  $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
-
-  my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
-
-  foreach my $subdivision (24, 60, 60, 1000) {
-    last if abs($fractional) < $millisecond;
-    $fractional *= $subdivision;
-    my $unit = int($fractional);
-    $fractional -= $unit;
-    push @d, $unit;
-  }
-
-  return $self->date_formatter->(@d);
-}
 
 
 1;

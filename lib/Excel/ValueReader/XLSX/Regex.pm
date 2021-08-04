@@ -2,7 +2,6 @@ package Excel::ValueReader::XLSX::Regex;
 use utf8;
 use 5.10.1;
 use Moose;
-use Date::Calc qw/Add_Delta_Days/;
 
 #======================================================================
 # GLOBAL VARIABLES
@@ -21,11 +20,10 @@ my $regex_entities = qr/&($entity_names);/;
 #======================================================================
 # ATTRIBUTES
 #======================================================================
-
 has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
                     required => 1, weak_ref => 1,
                     handles => [qw/sheet_member _member_contents strings A1_to_num
-                                   base_year date_formatter/]);
+                                   base_year _formatted_date/]);
 
 has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                       builder => '_date_styles', lazy => 1);
@@ -211,33 +209,6 @@ sub values {
 }
 
 
-
-sub _formatted_date {
-  my ($self, $val, $date_style) = @_;
-
-  state $millisecond = 1 / (24*60*60*1000);
-
-  my $n_days     = int($val);
-  my $fractional = $val - $n_days;
-
-  my $base_year  = $self->base_year;
-
-  $n_days -= 1;                                       # because we need a 0-based value
-  $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
-
-  my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
-
-  foreach my $subdivision (24, 60, 60, 1000) {
-    last if abs($fractional) < $millisecond;
-    $fractional *= $subdivision;
-    my $unit = int($fractional);
-    $fractional -= $unit;
-    push @d, $unit;
-  }
-
-  return $self->date_formatter->(@d);
-
-}
 
 
 1;

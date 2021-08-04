@@ -1,8 +1,22 @@
+=begin TODO
+
+  - document param 'date_formatter'
+  - _formatted_date ==> main module
+  - pass the $date_style parameter
+  - parameterize the default format (dd.mm.yyyy / yy-mm-dd / other)
+
+
+=end TODO
+
+=cut
+
 package Excel::ValueReader::XLSX;
 use utf8;
 use Moose;
 use Archive::Zip          qw(AZ_OK);
 use Module::Load          qw/load/;
+use Date::Calc            qw/Add_Delta_Days/;
+
 use feature 'state';
 
 our $VERSION = '1.01';
@@ -161,6 +175,36 @@ sub A1_to_num { # convert Excel A1 reference format to a number
 
   return $num;
 }
+
+sub _formatted_date {
+  my ($self, $val, $date_style) = @_;
+
+  state $millisecond = 1 / (24*60*60*1000);
+
+  my $n_days     = int($val);
+  my $fractional = $val - $n_days;
+
+  my $base_year  = $self->base_year;
+
+  $n_days -= 1;                                       # because we need a 0-based value
+  $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
+
+  my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
+
+  foreach my $subdivision (24, 60, 60, 1000) {
+    last if abs($fractional) < $millisecond;
+    $fractional *= $subdivision;
+    my $unit = int($fractional);
+    $fractional -= $unit;
+    push @d, $unit;
+  }
+
+  return $self->date_formatter->(@d);
+
+}
+
+
+
 
 
 1;
