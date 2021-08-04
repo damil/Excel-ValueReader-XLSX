@@ -80,7 +80,7 @@ sub _workbook_data {
 sub _date_styles {
   my $self = shift;
 
-  state $date_style_regex = qr{[dy]};
+  state $date_style_regex = qr{[dy]|\bmm\b};
 
   # read from the styles.xml zip member
   my $styles = $self->_member_contents('xl/styles.xml');
@@ -91,16 +91,16 @@ sub _date_styles {
   $numFmt[15] = 'd-mmm-yy';
   $numFmt[16] = 'd-mmm';
   $numFmt[17] = 'mmm-yy';
-  # $numFmt[18] = 'h:mm AM/PM';
-  # $numFmt[19] = 'h:mm:ss AM/PM';
-  # $numFmt[20] = 'h:mm';
-  # $numFmt[21] = 'h:mm:ss';
+  $numFmt[18] = 'h:mm AM/PM';
+  $numFmt[19] = 'h:mm:ss AM/PM';
+  $numFmt[20] = 'h:mm';
+  $numFmt[21] = 'h:mm:ss';
   $numFmt[22] = 'm/d/yy h:mm';
-  # $numFmt[45] = 'mm:ss';
-  # $numFmt[46] = '[h]:mm:ss';
-  # $numFmt[47] = 'mmss.0';
+  $numFmt[45] = 'mm:ss';
+  $numFmt[46] = '[h]:mm:ss';
+  $numFmt[47] = 'mmss.0';
 
-  # other specific date formats specified in this workbook
+  # add other date formats explicitly specified in this workbook
   while ($styles =~ m[<numFmt numFmtId="(\d+)" formatCode="([^"]+)"/>]g) {
     my ($id, $code) = ($1, $2);
     $numFmt[$id] = $code if $code =~ $date_style_regex;
@@ -234,9 +234,6 @@ sub _formatted_date {
     $fractional -= $unit;
     push @d, $unit;
   }
-  
-  # TEMP
-  # return "$val($date_style)";
 
   return $self->date_formatter->(@d);
 
