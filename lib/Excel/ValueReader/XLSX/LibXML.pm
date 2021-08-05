@@ -10,14 +10,16 @@ our $VERSION = '1.01';
 # ATTRIBUTES
 #======================================================================
 
-has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
-                    required => 1, weak_ref => 1,
-                    handles => [qw/sheet_member _member_contents strings A1_to_num
-                                   base_year _formatted_date/]);
+has 'frontend'    => (is => 'ro',   isa => 'Excel::ValueReader::XLSX',
+                      required => 1, weak_ref => 1,
+                      handles => [qw/_zip_member_name_for_sheet _zip_member_contents A1_to_num
+                                     _formatted_date/]);
 
 has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                       builder => '_date_styles', lazy => 1);
 
+has 'strings'     => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
+                      builder => '_strings',   lazy => 1);
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -26,7 +28,7 @@ has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
 sub _strings {
   my $self = shift;
 
-  my $reader = $self->_reader_for_member('xl/sharedStrings.xml');
+  my $reader = $self->_xml_reader_for_zip_member('xl/sharedStrings.xml');
 
   my @strings;
   my $last_string = '';
@@ -57,7 +59,7 @@ sub _workbook_data {
   my $sheet_id  = 1;
   my $base_year = 1900;
 
-  my $reader = $self->_reader_for_member('xl/workbook.xml');
+  my $reader = $self->_xml_reader_for_zip_member('xl/workbook.xml');
 
  NODE:
   while ($reader->read) {
@@ -83,7 +85,7 @@ sub _date_styles {
   my @date_styles;
 
   # read from the styles.xml zip member
-  my $reader = $self->_reader_for_member('xl/styles.xml');
+  my $reader = $self->_xml_reader_for_zip_member('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
   my @numFmt = $self->frontend->Excel_builtin_date_formats;
@@ -137,13 +139,14 @@ sub _date_styles {
 # METHODS
 #======================================================================
 
-sub _reader_for_member {
-  my ($self, $member) = @_;
+sub _xml_reader_for_zip_member {
+  my ($self, $member_name) = @_;
 
-  my $reader = XML::LibXML::Reader->new(string     => $self->_member_contents($member),
-                                        no_blanks  => 1,
-                                        no_network => 1,
-                                        huge       => 1);
+  my $contents = $self->_zip_member_contents($member_name);
+  my $reader   = XML::LibXML::Reader->new(string     => $contents,
+                                          no_blanks  => 1,
+                                          no_network => 1,
+                                          huge       => 1);
   return $reader;
 }
 
@@ -151,7 +154,8 @@ sub values {
   my ($self, $sheet) = @_;
 
   # prepare for traversing the XML structure
-  my $reader = $self->_reader_for_member($self->sheet_member($sheet));
+  my $sheet_member_name = $self->_zip_member_name_for_sheet($sheet);
+  my $reader            = $self->_xml_reader_for_zip_member($sheet_member_name);
   my @data;
   my ($row, $col, $cell_type, $cell_style, $seen_node);
 
@@ -172,7 +176,7 @@ sub values {
     }
 
     elsif ($node_name =~ /^[vtf]$/) {
-      # remember we have seen a 'value' or 'text' or 'formula' node
+      # remember that we have seen a 'value' or 'text' or 'formula' node
       $seen_node = $node_name;
     }
 

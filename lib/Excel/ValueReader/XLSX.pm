@@ -40,10 +40,8 @@ has 'zip'           => (is => 'ro',   isa => 'Archive::Zip', init_arg => undef,
 
 has 'backend'       => (is => 'ro',   isa => 'Object', init_arg => undef,
                         builder => '_backend', lazy => 1,
-                        handles => [qw/values _strings _workbook_data/]);
+                        handles => [qw/values _workbook_data/]);
 
-has 'strings'       => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
-                        builder => '_strings',   lazy => 1);
 
 has 'workbook_data' => (is => 'ro',   isa => 'HashRef', init_arg => undef,
                         builder => '_workbook_data',   lazy => 1);
@@ -133,7 +131,7 @@ sub sheet_names {
 
 
 
-sub _member_contents {
+sub _zip_member_contents {
   my ($self, $member) = @_;
 
   my $contents = $self->zip->contents($member)
@@ -145,7 +143,7 @@ sub _member_contents {
 
 
 
-sub sheet_member {
+sub _zip_member_name_for_sheet {
   my ($self, $sheet) = @_;
 
   # check that sheet name was given

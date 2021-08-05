@@ -3,30 +3,21 @@ use utf8;
 use 5.10.1;
 use Moose;
 
-#======================================================================
-# GLOBAL VARIABLES
-#======================================================================
-
 our $VERSION = '1.01';
-
-my %xml_entities   = ( amp  => '&',
-                       lt   => '<',
-                       gt   => '>',
-                       quot => '"',
-                       apos => "'",  );
-my $entity_names   = join '|', keys %xml_entities;
-my $regex_entities = qr/&($entity_names);/;
 
 #======================================================================
 # ATTRIBUTES
 #======================================================================
-has 'frontend'  => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
-                    required => 1, weak_ref => 1,
-                    handles => [qw/sheet_member _member_contents strings A1_to_num
-                                   base_year _formatted_date/]);
+has 'frontend'   => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
+                     required => 1, weak_ref => 1,
+                     handles => [qw/_zip_member_name_for_sheet _zip_member_contents A1_to_num
+                                    _formatted_date/]);
 
 has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                       builder => '_date_styles', lazy => 1);
+
+has 'strings'     => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
+                      builder => '_strings',   lazy => 1);
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -37,17 +28,15 @@ sub _strings {
   my @strings;
 
   # read from the sharedStrings zip member
-  my $contents = $self->_member_contents('xl/sharedStrings.xml');
+  my $contents = $self->_zip_member_contents('xl/sharedStrings.xml');
 
   # iterate on <si> nodes
   while ($contents =~ m[<si>(.*?)</si>]sg) {
     my $innerXML = $1;
 
-    # concatenate contents from all <t> nodes (usually there is only 1)
-    my $string   = join "", ($innerXML =~ m[<t[^>]*>(.+?)</t>]sg);
-
-    # decode entities
-    $string =~ s/$regex_entities/$xml_entities{$1}/eg;
+    # concatenate contents from all <t> nodes (usually there is only 1) and decode XML entities
+    my $string = join "", ($innerXML =~ m[<t[^>]*>(.+?)</t>]sg);
+    _decode_xml_entities($string);
 
     push @strings, $string;
   }
@@ -60,7 +49,7 @@ sub _workbook_data {
   my $self = shift;
 
   # read from the workbook.xml zip member
-  my $workbook = $self->_member_contents('xl/workbook.xml');
+  my $workbook = $self->_zip_member_contents('xl/workbook.xml');
 
   # extract sheet names
   my @sheet_names = ($workbook =~ m[<sheet name="(.+?)"]g);
@@ -81,7 +70,7 @@ sub _date_styles {
   state $date_style_regex = qr{[dy]|\bmm\b};
 
   # read from the styles.xml zip member
-  my $styles = $self->_member_contents('xl/styles.xml');
+  my $styles = $self->_zip_member_contents('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
   my @numFmt = $self->frontend->Excel_builtin_date_formats;
@@ -157,11 +146,11 @@ sub values {
        </c>                  #    followed by a closing cell tag
       )
     )x;
-  # NOTE : this regex uses capturing groups; I tried with named captures
+  # NOTE : this regex uses capturing groups; I tried with named captures instead
   # but this doubled the execution time on big Excel files
 
   # parse worksheet XML, gathering all cells
-  my $contents = $self->_member_contents($self->sheet_member($sheet));
+  my $contents = $self->_zip_member_contents($self->_zip_member_name_for_sheet($sheet));
   while ($contents =~ /$cell_regex/g) {
     my ($col, $row, $style, $cell_type, $val, $inner) = ($self->A1_to_num($1), $2, $3, $4, $5, $6);
 
@@ -170,7 +159,7 @@ sub values {
     if ($cell_type eq 'inlineStr') {
       # this is an inline string; gather all <t> nodes within the cell node
       $val = join "", ($inner =~ m[<t>(.+?)</t>]g);
-      $val =~ s/$regex_entities/$xml_entities{$1}/eg if $val;
+      _decode_xml_entities($val) if $val;
     }
     elsif ($cell_type eq 's') {
       # this is a string cell; $val is a pointer into the global array of shared strings
@@ -178,7 +167,7 @@ sub values {
     }
     else {
       ($val) = ($inner =~ m[<v>(.*?)</v>])           if !defined $val && $inner;
-      $val =~ s/$regex_entities/$xml_entities{$1}/eg if $val && $cell_type eq 'str';
+      _decode_xml_entities($val) if $val && $cell_type eq 'str';
 
       if ($style && defined $val && $val >= 0) {
         my $date_style = $self->date_styles->[$style];
@@ -196,7 +185,24 @@ sub values {
   return \@data;
 }
 
+#======================================================================
+# AUXILIARY FUNCTIONS
+#======================================================================
 
+
+sub _decode_xml_entities {
+  state %xml_entities   = ( amp  => '&',
+                            lt   => '<',
+                            gt   => '>',
+                            quot => '"',
+                            apos => "'",
+                           );
+  state $entity_names   = join '|', keys %xml_entities;
+  state $regex_entities = qr/&($entity_names);/;
+
+  # substitute in-place
+  $_[0] =~ s/$regex_entities/$xml_entities{$1}/eg;
+}
 
 
 1;
