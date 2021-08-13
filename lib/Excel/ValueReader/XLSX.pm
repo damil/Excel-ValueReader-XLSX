@@ -1,9 +1,7 @@
 =begin TODO
 
-  - document param 'date_formatter'
   - test all date/time options
   - _workbook_data should go to backend class
-
 
 =end TODO
 
@@ -42,16 +40,7 @@ has 'zip'           => (is => 'ro',   isa => 'Archive::Zip', init_arg => undef,
 
 has 'backend'       => (is => 'ro',   isa => 'Object', init_arg => undef,
                         builder => '_backend', lazy => 1,
-                        handles => [qw/values _workbook_data/]);
-
-
-has 'workbook_data' => (is => 'ro',   isa => 'HashRef', init_arg => undef,
-                        builder => '_workbook_data',   lazy => 1);
-
-
-
-
-
+                        handles => [qw/values base_year sheets/]);
 
 #======================================================================
 # BUILDING
@@ -90,7 +79,7 @@ sub _zip {
 sub _backend {
   my $self = shift;
 
-  my $backend_class = ref($self) . '::' . $self->using;
+  my $backend_class = ref($self) . '::Backend::' . $self->using;
   load $backend_class;
 
   return $backend_class->new(frontend => $self);
@@ -136,16 +125,6 @@ sub _date_formatter {
 #======================================================================
 # PUBLIC METHODS
 #======================================================================
-
-sub base_year {
-  my ($self) = @_;
-  return $self->workbook_data->{base_year};
-}
-
-sub sheets {
-  my ($self) = @_;
-  return $self->workbook_data->{sheets};
-}
 
 
 sub sheet_names {

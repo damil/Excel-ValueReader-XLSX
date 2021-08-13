@@ -1,23 +1,16 @@
-package Excel::ValueReader::XLSX::Regex;
+package Excel::ValueReader::XLSX::Backend::Regex;
 use utf8;
 use 5.10.1;
 use Moose;
+extends 'Excel::ValueReader::XLSX::Backend';
 
 our $VERSION = '1.01';
 
 #======================================================================
 # ATTRIBUTES
 #======================================================================
-has 'frontend'   => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
-                     required => 1, weak_ref => 1,
-                     handles => [qw/_zip_member_name_for_sheet _zip_member_contents 
-                                    A1_to_num formatted_date/]);
 
-has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
-                      builder => '_date_styles', lazy => 1);
 
-has 'strings'     => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
-                      builder => '_strings',   lazy => 1);
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
