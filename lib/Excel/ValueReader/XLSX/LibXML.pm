@@ -12,8 +12,8 @@ our $VERSION = '1.01';
 
 has 'frontend'    => (is => 'ro',   isa => 'Excel::ValueReader::XLSX',
                       required => 1, weak_ref => 1,
-                      handles => [qw/_zip_member_name_for_sheet _zip_member_contents A1_to_num
-                                     _formatted_date/]);
+                      handles => [qw/_zip_member_name_for_sheet _zip_member_contents
+                                     A1_to_num formatted_date/]);
 
 has 'date_styles' => (is => 'ro',   isa => 'ArrayRef', init_arg => undef,
                       builder => '_date_styles', lazy => 1);
@@ -200,7 +200,7 @@ sub values {
           # if this is a date, replace the numeric value by the formatted date
           if ($cell_style && defined $val && $val >= 0) {
             my $date_style = $self->date_styles->[$cell_style];
-            $val = $self->_formatted_date($val, $date_style)    if $date_style;
+            $val = $self->formatted_date($val, $date_style)    if $date_style;
           }
         }
         else {

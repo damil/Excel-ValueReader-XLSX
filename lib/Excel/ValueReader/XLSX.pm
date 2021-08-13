@@ -1,9 +1,8 @@
 =begin TODO
 
   - document param 'date_formatter'
-  - _formatted_date ==> main module
-  - pass the $date_style parameter
-  - parameterize the default format (dd.mm.yyyy / yy-mm-dd / other)
+  - test all date/time options
+  - _workbook_data should go to backend class
 
 
 =end TODO
@@ -16,7 +15,7 @@ use Moose;
 use Archive::Zip          qw(AZ_OK);
 use Module::Load          qw/load/;
 use Date::Calc            qw/Add_Delta_Days/;
-
+use POSIX                 qw/strftime/;
 use feature 'state';
 
 our $VERSION = '1.01';
@@ -26,11 +25,14 @@ our $VERSION = '1.01';
 #======================================================================
 
 # PUBLIC ATTRIBUTES
-has 'xlsx'          => (is => 'ro',   isa => 'Str', required => 1);      # path of xlsx file
-has 'using'         => (is => 'ro',   isa => 'Str', default => 'Regex'); # name of backend class
-
-has 'date_formatter' => (is => 'ro',   isa => 'CodeRef',
-                         default => sub {\&ddmmyyyy});
+has 'xlsx'            => (is => 'ro', isa => 'Str', required => 1);      # path of xlsx file
+has 'using'           => (is => 'ro', isa => 'Str', default => 'Regex'); # name of backend class
+has 'date_format'     => (is => 'ro', isa => 'Str', default => '%d.%m.%Y');
+has 'time_format'     => (is => 'ro', isa => 'Str', default => '%H:%M:%S');
+has 'datetime_format' => (is => 'ro', isa => 'Str',
+                          builder => '_datetime_format', lazy => 1);
+has 'date_formatter'  => (is => 'ro',   isa => 'Maybe[CodeRef]',
+                          builder => '_date_formatter', lazy => 1);
 
 
 
@@ -47,18 +49,7 @@ has 'workbook_data' => (is => 'ro',   isa => 'HashRef', init_arg => undef,
                         builder => '_workbook_data',   lazy => 1);
 
 
-sub ddmmyyyy {
-  my ($y, $m, $d, $h, $min, $s, $ms) = @_;
 
-  my $date = sprintf "%02d.%02d.%04d", $d, $m, $y;
-
-  $date .= sprintf " %02d", $h   if defined $h;
-  $date .= sprintf ":%02d", $min if defined $min;
-  $date .= sprintf ":%02d", $s   if defined $s;
-  $date .= sprintf ".%03d", $ms  if defined $ms;
-
-  return $date;
-}
 
 
 
@@ -105,9 +96,45 @@ sub _backend {
   return $backend_class->new(frontend => $self);
 }
 
+sub _datetime_format {
+  my ($self) = @_;
+  return $self->date_format . ' ' . $self->time_format;
+}
+
+
+
+sub _date_formatter {
+  my ($self) = @_;
+
+  # local copies of the various formats so that we can build a closure
+  my @formats = (undef,                     # 0 -- error
+                 $self->date_format,        # 1 -- just a date
+                 $self->time_format,        # 2 -- just a time
+                 $self->datetime_format);   # 3 -- date and time
+
+  my $strftime_formatter = sub {
+    my ($xl_date_format, $y, $m, $d, $h, $min, $s, $ms) = @_;
+
+    # choose the proper format for strftime
+    my $ix = 0;
+    $ix += 1 if $xl_date_format =~ /[dy]/; # the Excel format contains a date portion
+    $ix += 2 if $xl_date_format =~ /[hs]/; # the Excel format contains a time portion
+    my $strftime_format = $formats[$ix]
+      or die "cell with unexpected Excel date format : $xl_date_format";
+
+    # formatting through strftime
+    no warnings 'uninitialized'; # because $s, $min, $h may be undef
+    my $formatted_date = strftime($strftime_format, $s, $min, $h, $d, $m-1, $y-1900);
+
+    return $formatted_date;
+  };
+
+  return $strftime_formatter;
+}
+
 
 #======================================================================
-# METHODS
+# PUBLIC METHODS
 #======================================================================
 
 sub base_year {
@@ -129,7 +156,25 @@ sub sheet_names {
   return sort {$sheets->{$a} <=> $sheets->{$b}} keys %$sheets;
 }
 
+sub A1_to_num { # convert Excel A1 reference format to a number
+  my ($self, $string) = @_;;
 
+  # ordinal number for character just before 'A'
+  state $base = ord('A') - 1;
+
+  # iterate on 'digits' (letters of the A1 cell reference)
+  my $num = 0;
+  foreach my $digit (map {ord($_) - $base} split //, $string) {
+    $num = $num*26 + $digit;
+  }
+
+  return $num;
+}
+
+
+#======================================================================
+# PRIVATE METHODS FOR BACKEND MODULES
+#======================================================================
 
 sub _zip_member_contents {
   my ($self, $member) = @_;
@@ -159,52 +204,47 @@ sub _zip_member_name_for_sheet {
 }
 
 
-sub A1_to_num { # convert Excel A1 reference format to a number
-  my ($self, $string) = @_;;
 
-  # ordinal number for character just before 'A'
-  state $base = ord('A') - 1;
-
-  # iterate on 'digits' (letters of the A1 cell reference)
-  my $num = 0;
-  foreach my $digit (map {ord($_) - $base} split //, $string) {
-    $num = $num*26 + $digit;
-  }
-
-  return $num;
-}
-
-sub _formatted_date {
-  my ($self, $val, $date_style) = @_;
+sub formatted_date {
+  my ($self, $val, $date_format, $date_formatter) = @_;
 
   state $millisecond = 1 / (24*60*60*1000);
 
-  my $n_days     = int($val);
-  my $fractional = $val - $n_days;
+  # separate date (integer part) from time (fractional part)
+  my $n_days = int($val);
+  my $time   = $val - $n_days;
 
+  # convert $n_days into a date in Date::Calc format (year, month, day)nnn
   my $base_year  = $self->base_year;
-
   $n_days -= 1;                                       # because we need a 0-based value
   $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
-
   my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
 
+  # decode the fractional part (the time) into hours, minutes, seconds, milliseconds
   foreach my $subdivision (24, 60, 60, 1000) {
-    last if abs($fractional) < $millisecond;
-    $fractional *= $subdivision;
-    my $unit = int($fractional);
-    $fractional -= $unit;
-    push @d, $unit;
+    last if abs($time) < $millisecond;
+    $time            *= $subdivision;
+    my $time_portion  = int($time);
+    $time            -= $time_portion;
+    push @d, $time_portion;
   }
 
-  return $self->date_formatter->(@d);
+  # at this point, @d contains (year, month, day, hour, minute, second, millisecond),
+  # where hour, minute, etc. may possibly be undef
 
+  # call the date_formatter subroutine
+  $date_formatter //= $self->date_formatter;
+
+  return $date_formatter->($date_format, @d);
 }
-
 
 
 sub Excel_builtin_date_formats {
   my @numFmt;
+
+  # source : section 18.8.30 numFmt (Number Format) in ECMA-376-1:2016
+  # Office Open XML File Formats — Fundamentals and Markup Language
+  # Reference
   $numFmt[14] = 'mm-dd-yy';
   $numFmt[15] = 'd-mmm-yy';
   $numFmt[16] = 'd-mmm';
@@ -217,8 +257,10 @@ sub Excel_builtin_date_formats {
   $numFmt[45] = 'mm:ss';
   $numFmt[46] = '[h]:mm:ss';
   $numFmt[47] = 'mmss.0';
+
   return @numFmt;
 }
+
 
 
 
@@ -279,7 +321,8 @@ It is probably safer but about three times slower than the Regex backend
 =head2 new
 
   my $reader = Excel::ValueReader::XLSX->new(xlsx  => $filename,
-                                             using => $backend);
+                                             using => $backend,
+                                             %date_formatting_options);
 
 The C<xlsx> argument is mandatory and points to the C<.xlsx> file to be parsed.
 The C<using> argument is optional; it specifies the backend to be used for parsing;
@@ -288,6 +331,9 @@ default is 'Regex'.
 As syntactic sugar, a shorter form is admitted :
 
   my $reader = Excel::ValueReader::XLSX->new($filename);
+
+Optional parameters for formatting date and time values
+are described in the L</DATE AND TIME FORMATS> section below.
 
 
 =head2 sheet_names
@@ -329,6 +375,98 @@ like this :
 Converts a column expressed as a sequence of capital letters (in Excel's "A1" notation)
 into the corresponding numeric value.
 
+
+=head1 DATE AND TIME FORMATS
+
+=head2 Date and time handling
+
+In Excel, date and times values are stored as numeric values, where the integer part
+represents the date, and the fractional part represents the time. What distinguishes
+such numbers from ordinary numbers is the I<numeric format> applied to the cells
+where they appear.
+
+Numeric formats in Excel are complex to reproduce, in particular
+because they are locale-dependent; therefore the present module does not attempt
+to faithfully interpret Excel formats. It just infers from formats which
+cells should be presented as date and/or time values. All such values are then
+presented through the same E<date_formatter> routine. The default formatter
+is based on L<POSIX/strftime>; other behaviours may be specified through the C<date_formatter>
+parameter (explained below).
+
+=head2 Parameters for the default strftime formatter
+
+When using the default strftime formatter, the following parameters may be passed
+to the constructor :
+
+=over
+
+=item date_format
+
+The L<POSIX/strftime> format for representing dates. The default is C<%d.%m.%Y>.
+
+=item time_format
+
+The L<POSIX/strftime> format for representing times. The default is C<%H:%M:%S>.
+
+=item datetime_format
+
+The L<POSIX/strftime> format for representing date and time together.
+The default is the concatenation of C<date_format> and C<time_format>, with
+a space inbetween.
+
+=back
+
+
+=head2 Writing a custom formatter
+
+A custom algorithm for date formatting can be specified as a parameter to the constructor
+
+  my $reader = Excel::ValueReader::XLSX->new(xlsx           => $filename,
+                                             date_formatter => sub {...});
+
+If this parameter is C<undef>, date formatting is canceled and therefore date and
+time values will be presented as plain numbers.
+
+If not C<undef>, the date formatting routine will we called as :
+
+  $date_formater->($excel_date_format, $year, $month, $day, $hour, $minute, $second, $millisecond);
+
+where
+
+=over
+
+=item *
+
+C<$excel_date_format> is the Excel numbering format associated to that cell, like for example
+C<mm-dd-yy> or C<h:mm:ss AM/PM>. See the Excel documentation for the syntax description.
+This is useful to decide if the value should be presented as a date, a time, or both.
+The present module uses a simple heuristic : if the format contains C<d> or C<y>, it should
+be presented as a date; if the format contains C<h> or C<s>, it should be presented
+as a time. The letter C<m> is not taken into consideration because it is ambiguous :
+depending on the position in the format string, it may represent either a "month" or a "minute".
+
+=item *
+
+C<year> is the full year, such as 1993 or 2021. The date system of the Excel file (either 1900 or 1904,
+see L<https://support.microsoft.com/en-us/office/date-systems-in-excel-e7fe7167-48a9-4b96-bb53-5612a800b487>) is properly taken into account. Excel has no support for dates prior to 1900 or 1904, so the
+C<year> component wil always be above this value.
+
+=item *
+
+C<month> is the numeric value of the month, starting at 1
+
+=item *
+
+C<day> is the numeric value of the day in month, starting at 1
+
+=item *
+
+C<$hour>, C<$minute>, C<$second>, C<$millisecond> obviously contain the corresponding
+numeric values. They may be undef (when the Excel cell value is a plain integer).
+
+=back
+
+
 =head1 CAVEATS
 
 =over
@@ -338,15 +476,6 @@ into the corresponding numeric value.
 This module was optimized for speed, not for completeness of
 OOXML-SpreadsheetML support; so there may be some edge cases where the
 output is incorrect with respect to the original Excel data.
-
-=item *
-
-Excel dates are stored internally as numbers, so they will appear as
-numbers in the output. To convert numbers to dates, use the
-L<DateTime::Format::Excel> module. Unfortunately the module has
-currently no support for identifying which cells contain dates; this
-would require to parse cell formats -- maybe this will be implemented
-in a future release.
 
 =item *
 
@@ -374,6 +503,8 @@ Another unpublished but working module for parsing Excel files in Perl
 can be found at L<https://github.com/jmcnamara/excel-reader-xlsx>.
 Some test cases were borrowed from that distribution.
 
+Conversions from and to Excel internal date format can be performed
+through the L<DateTime::Format::Excel> module.
 
 =head1 BENCHMARKS
 
