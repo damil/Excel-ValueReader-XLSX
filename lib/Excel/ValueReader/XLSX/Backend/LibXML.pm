@@ -6,12 +6,7 @@ use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-
 our $VERSION = '1.01';
-
-#======================================================================
-# ATTRIBUTES
-#======================================================================
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -77,45 +72,45 @@ sub _date_styles {
   my @date_styles;
 
   # read from the styles.xml zip member
-  my $reader = $self->_xml_reader_for_zip_member('xl/styles.xml');
+  my $xml_reader = $self->_xml_reader_for_zip_member('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
-  my @numFmt = $self->frontend->Excel_builtin_date_formats;
+  my @numFmt = $self->Excel_builtin_date_formats;
 
   my $expected_subnode = undef;
 
   # add other date formats explicitly specified in this workbook
  NODE:
-  while ($reader->read) {
-    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
+  while ($xml_reader->read) {
+    next NODE if $xml_reader->nodeType == XML_READER_TYPE_END_ELEMENT;
 
     # special treatment for some specific subtrees -- see 'numFmt' and 'xf' below
     if ($expected_subnode) {
       my ($name, $depth, $handler) = @$expected_subnode;
-      if ($reader->name eq $name && $reader->depth == $depth) {
+      if ($xml_reader->name eq $name && $xml_reader->depth == $depth) {
         # process that subnode and go to the next node
         $handler->();
         next NODE;
       }
-      elsif ($reader->depth < $depth) {
+      elsif ($xml_reader->depth < $depth) {
         # finished handling subnodes; back to regular node treatment
         $expected_subnode = undef;
       }
     }
 
     # regular node treatement
-    if ($reader->name eq 'numFmts') {
-      $expected_subnode = [numFmt => $reader->depth+1 => sub {
-                             my $id   = $reader->getAttribute('numFmtId');
-                             my $code = $reader->getAttribute('formatCode');
+    if ($xml_reader->name eq 'numFmts') {
+      $expected_subnode = [numFmt => $xml_reader->depth+1 => sub {
+                             my $id   = $xml_reader->getAttribute('numFmtId');
+                             my $code = $xml_reader->getAttribute('formatCode');
                              $numFmt[$id] = $code if $id && $code && $code =~ $date_style_regex;
                            }];
     }
 
-    elsif ($reader->name eq 'cellXfs') {
-      $expected_subnode = [xf => $reader->depth+1 => sub {
+    elsif ($xml_reader->name eq 'cellXfs') {
+      $expected_subnode = [xf => $xml_reader->depth+1 => sub {
                              state $xf_count = 0;
-                             my $numFmtId    = $reader->getAttribute('numFmtId');
+                             my $numFmtId    = $xml_reader->getAttribute('numFmtId');
                              my $code        = $numFmt[$numFmtId]; # may be undef
                              $date_styles[$xf_count++] = $code;
                            }];
@@ -147,23 +142,23 @@ sub values {
 
   # prepare for traversing the XML structure
   my $sheet_member_name = $self->_zip_member_name_for_sheet($sheet);
-  my $reader            = $self->_xml_reader_for_zip_member($sheet_member_name);
+  my $xml_reader        = $self->_xml_reader_for_zip_member($sheet_member_name);
   my @data;
   my ($row, $col, $cell_type, $cell_style, $seen_node);
 
   # iterate through XML nodes
  NODE:
-  while ($reader->read) {
-    next NODE if $reader->nodeType == XML_READER_TYPE_END_ELEMENT;
-    my $node_name = $reader->name;
+  while ($xml_reader->read) {
+    next NODE if $xml_reader->nodeType == XML_READER_TYPE_END_ELEMENT;
+    my $node_name = $xml_reader->name;
 
     if ($node_name eq 'c') {
       # new cell node : store its col/row reference and its type
-      my $A1_cell_ref = $reader->getAttribute('r');
+      my $A1_cell_ref = $xml_reader->getAttribute('r');
       ($col, $row)    = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
       $col            = $self->A1_to_num($col);
-      $cell_type      = $reader->getAttribute('t');
-      $cell_style     = $reader->getAttribute('s');
+      $cell_type      = $xml_reader->getAttribute('t');
+      $cell_style     = $xml_reader->getAttribute('s');
       $seen_node      = '';
     }
 
@@ -175,7 +170,7 @@ sub values {
     elsif ($node_name eq '#text') {
       #start processing cell content
 
-      my $val = $reader->value;
+      my $val = $xml_reader->value;
       $cell_type //= '';
 
       if ($seen_node eq 'v')  {
@@ -239,12 +234,12 @@ __END__
 
 =head1 NAME
 
-Excel::ValueReader::XLSX::LibXML - using LibXML for extracting values from Excel workbooks
+Excel::ValueReader::XLSX::Backend::LibXML - using LibXML for extracting values from Excel workbooks
 
 =head1 DESCRIPTION
 
 This is one of two backend modules for L<Excel::ValueReader::XLSX>; the other
-possible backend is L<Excel::ValueReader::XLSX::Regex>.
+possible backend is L<Excel::ValueReader::XLSX::Backend::Regex>.
 
 This backend parses OOXML structures using L<XML::LibXML::Reader>.
 
@@ -254,7 +249,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020 by Laurent Dami.
+Copyright 2020,2021 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

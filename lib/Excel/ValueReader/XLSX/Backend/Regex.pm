@@ -7,12 +7,6 @@ extends 'Excel::ValueReader::XLSX::Backend';
 our $VERSION = '1.01';
 
 #======================================================================
-# ATTRIBUTES
-#======================================================================
-
-
-
-#======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
 #======================================================================
 
@@ -66,7 +60,7 @@ sub _date_styles {
   my $styles = $self->_zip_member_contents('xl/styles.xml');
 
   # start with Excel builtin number formats for dates and times
-  my @numFmt = $self->frontend->Excel_builtin_date_formats;
+  my @numFmt = $self->Excel_builtin_date_formats;
 
   # add other date formats explicitly specified in this workbook
   while ($styles =~ m[<numFmt numFmtId="(\d+)" formatCode="([^"]+)"/>]g) {
@@ -204,12 +198,12 @@ __END__
 
 =head1 NAME
 
-Excel::ValueReader::XLSX::Regex - using regexes for extracting values from Excel workbooks
+Excel::ValueReader::XLSX::Backend::Regex - using regexes for extracting values from Excel workbooks
 
 =head1 DESCRIPTION
 
 This is one of two backend modules for L<Excel::ValueReader::XLSX>; the other
-possible backend is L<Excel::ValueReader::XLSX::LibXML>.
+possible backend is L<Excel::ValueReader::XLSX::Backend::LibXML>.
 
 This backend parses OOXML structures using regular expressions.
 
