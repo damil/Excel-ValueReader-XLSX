@@ -10,7 +10,6 @@
 package Excel::ValueReader::XLSX;
 use utf8;
 use Moose;
-use Archive::Zip          qw(AZ_OK);
 use Module::Load          qw/load/;
 use Date::Calc            qw/Add_Delta_Days/;
 use POSIX                 qw/strftime/;
@@ -35,9 +34,6 @@ has 'date_formatter'  => (is => 'ro',   isa => 'Maybe[CodeRef]',
 
 
 # ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
-has 'zip'           => (is => 'ro',   isa => 'Archive::Zip', init_arg => undef,
-                        builder => '_zip', lazy => 1);
-
 has 'backend'       => (is => 'ro',   isa => 'Object', init_arg => undef,
                         builder => '_backend', lazy => 1,
                         handles => [qw/values base_year sheets/]);
@@ -65,15 +61,6 @@ around BUILDARGS => sub {
 # ATTRIBUTE CONSTRUCTORS
 #======================================================================
 
-sub _zip {
-  my $self = shift;
-
-  my $zip = Archive::Zip->new;
-  $zip->read($self->{xlsx}) == AZ_OK
-      or die "cannot unzip $self->{xlsx}";
-
-  return $zip;
-}
 
 
 sub _backend {
@@ -154,33 +141,6 @@ sub A1_to_num { # convert Excel A1 reference format to a number
 #======================================================================
 # PRIVATE METHODS FOR BACKEND MODULES
 #======================================================================
-
-sub _zip_member_contents {
-  my ($self, $member) = @_;
-
-  my $contents = $self->zip->contents($member)
-    or die "no contents for member $member";
-  utf8::decode($contents);
-
-  return $contents;
-}
-
-
-
-sub _zip_member_name_for_sheet {
-  my ($self, $sheet) = @_;
-
-  # check that sheet name was given
-  $sheet or die "->values(): missing sheet name";
-
-  # get sheet id
-  my $id = $self->sheets->{$sheet};
-  $id //= $sheet if $sheet =~ /^\d+$/;
-  $id or die "no such sheet: $sheet";
-
-  # construct member name for that sheet
-  return "xl/worksheets/sheet$id.xml";
-}
 
 
 
