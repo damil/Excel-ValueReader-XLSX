@@ -1,12 +1,3 @@
-=begin TODO
-
-  - test all date/time options
-  - _workbook_data should go to backend class
-
-=end TODO
-
-=cut
-
 package Excel::ValueReader::XLSX;
 use utf8;
 use Moose;
@@ -62,7 +53,6 @@ around BUILDARGS => sub {
 #======================================================================
 
 
-
 sub _backend {
   my $self = shift;
 
@@ -76,8 +66,6 @@ sub _datetime_format {
   my ($self) = @_;
   return $self->date_format . ' ' . $self->time_format;
 }
-
-
 
 sub _date_formatter {
   my ($self) = @_;
@@ -142,8 +130,6 @@ sub A1_to_num { # convert Excel A1 reference format to a number
 # PRIVATE METHODS FOR BACKEND MODULES
 #======================================================================
 
-
-
 sub formatted_date {
   my ($self, $val, $date_format, $date_formatter) = @_;
 
@@ -176,8 +162,6 @@ sub formatted_date {
 
   return $date_formatter->($date_format, @d);
 }
-
-
 
 1;
 
@@ -290,6 +274,17 @@ like this :
 
 Converts a column expressed as a sequence of capital letters (in Excel's "A1" notation)
 into the corresponding numeric value.
+
+
+=head1 formatted_date
+
+  my $date = $reader->formatted_date($numeric_date, $excel_date_format);
+
+Given a numeric date, this method returns a string date formatted according
+to the I<date formatter> routine explained in the next section. The C<$excel_date_format>
+argument should be the Excel format string for that specific cell; it is used
+only for for deciding if the numeric value should be presented as a date, as a time,
+or both. Optionally, a custom date formatter callback could be passed as third argument.
 
 
 =head1 DATE AND TIME FORMATS
@@ -419,7 +414,7 @@ Another unpublished but working module for parsing Excel files in Perl
 can be found at L<https://github.com/jmcnamara/excel-reader-xlsx>.
 Some test cases were borrowed from that distribution.
 
-Conversions from and to Excel internal date format can be performed
+Conversions from and to Excel internal date format can also be performed
 through the L<DateTime::Format::Excel> module.
 
 =head1 BENCHMARKS

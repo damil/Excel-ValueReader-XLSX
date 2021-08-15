@@ -31,8 +31,6 @@ has 'workbook_data' => (is => 'ro',   isa => 'HashRef', init_arg => undef,
 # ATTRIBUTE CONSTRUCTORS
 #======================================================================
 
-
-
 sub _zip {
   my $self = shift;
 
@@ -44,6 +42,7 @@ sub _zip {
   return $zip;
 }
 
+# other attribute constructors are supplied in subclasses
 
 #======================================================================
 # METHODS
