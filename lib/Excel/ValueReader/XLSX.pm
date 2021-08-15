@@ -25,9 +25,9 @@ has 'date_formatter'  => (is => 'ro',   isa => 'Maybe[CodeRef]',
 
 
 # ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
-has 'backend'       => (is => 'ro',   isa => 'Object', init_arg => undef,
-                        builder => '_backend', lazy => 1,
-                        handles => [qw/values base_year sheets/]);
+has 'backend'         => (is => 'ro',   isa => 'Object', init_arg => undef,
+                          builder => '_backend', lazy => 1,
+                          handles => [qw/values base_year sheets/]);
 
 #======================================================================
 # BUILDING
@@ -80,7 +80,7 @@ sub _date_formatter {
     my ($xl_date_format, $y, $m, $d, $h, $min, $s, $ms) = @_;
 
     # choose the proper format for strftime
-    my $ix = 0;
+    my $ix = 0; # index into the @formats array
     $ix += 1 if $xl_date_format =~ /[dy]/; # the Excel format contains a date portion
     $ix += 2 if $xl_date_format =~ /[hs]/; # the Excel format contains a time portion
     my $strftime_format = $formats[$ix]
@@ -98,17 +98,19 @@ sub _date_formatter {
 
 
 #======================================================================
-# PUBLIC METHODS
+# METHODS
 #======================================================================
 
 
 sub sheet_names {
   my ($self) = @_;
 
-  my $sheets = $self->sheets;
+  my $sheets = $self->sheets; # arrayref of shape {$name => $sheet_position}
 
-  return sort {$sheets->{$a} <=> $sheets->{$b}} keys %$sheets;
+  my @sorted_names = sort {$sheets->{$a} <=> $sheets->{$b}} keys %$sheets;
+  return @sorted_names;
 }
+
 
 sub A1_to_num { # convert Excel A1 reference format to a number
   my ($self, $string) = @_;;
@@ -125,10 +127,6 @@ sub A1_to_num { # convert Excel A1 reference format to a number
   return $num;
 }
 
-
-#======================================================================
-# PRIVATE METHODS FOR BACKEND MODULES
-#======================================================================
 
 sub formatted_date {
   my ($self, $val, $date_format, $date_formatter) = @_;
