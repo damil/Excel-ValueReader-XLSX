@@ -9,7 +9,7 @@ our $VERSION = '1.01';
 #======================================================================
 # ATTRIBUTES
 #======================================================================
-has 'frontend'      => (is => 'ro',   isa => 'Excel::ValueReader::XLSX', 
+has 'frontend'      => (is => 'ro',   isa => 'Excel::ValueReader::XLSX',
                         required => 1, weak_ref => 1,
                         handles => [qw/A1_to_num formatted_date/]);
 
@@ -42,7 +42,7 @@ sub _zip {
   return $zip;
 }
 
-# other attribute constructors are supplied in subclasses
+# attribute constructors for _date_styles, _strings and _workbook_data are supplied in subclasses
 
 #======================================================================
 # METHODS
@@ -65,8 +65,7 @@ sub Excel_builtin_date_formats {
   my @numFmt;
 
   # source : section 18.8.30 numFmt (Number Format) in ECMA-376-1:2016
-  # Office Open XML File Formats — Fundamentals and Markup Language
-  # Reference
+  # Office Open XML File Formats — Fundamentals and Markup Language Reference
   $numFmt[14] = 'mm-dd-yy';
   $numFmt[15] = 'd-mmm-yy';
   $numFmt[16] = 'd-mmm';
@@ -112,7 +111,7 @@ sub _zip_member_name_for_sheet {
 }
 
 
-
+# method "values" is defined in subclasses
 
 
 
@@ -122,9 +121,60 @@ __END__
 
 =head1 NAME
 
-Excel::ValueReader::XLSX::Backend -- TODO
+Excel::ValueReader::XLSX::Backend -- abstract class, parent for the Regex and LibXML backends
 
 =head1 DESCRIPTION
+
+L<Excel::ValueReader::XLSX> has two possible implementation backends for parsing
+C<XLSX> files :
+L<Excel::ValueReader::XLSX::Backend::Regex>, based on regular expressions, or
+L<Excel::ValueReader::XLSX::Backend::LibXML>, based on the libxml2 library.
+Both backends share some common features, so the present class implements those
+common features. This is about internal implementation; it should be of no interest
+to external users of the module.
+
+=head1 ATTRIBUTES
+
+A backend instance possesses the following attributes :
+
+=over
+
+=item frontend
+
+a weak reference to the frontend instance
+
+=item zip
+
+an L<Archive::Zip> instance for accessing the contents of the C<xlsx> file
+
+=item date_styles
+
+an array of numeric styles for presenting dates and times. Styles are either
+Excel's builtin styles, or custom styles defined in the workbook.
+
+=item strings
+
+an array of all shared strings within the workbook
+
+=item workbook_data
+
+some metadata information about the workbook
+
+=back
+
+
+
+=head1 ABSTRACT METHODS
+
+=over
+
+=item values
+
+Inspects all cells within the XSLX files and returns a bi-dimensional array of values.
+Not defined in this abstract class, but implemented in subclasses.
+
+=back
+
 
 
 =head1 AUTHOR

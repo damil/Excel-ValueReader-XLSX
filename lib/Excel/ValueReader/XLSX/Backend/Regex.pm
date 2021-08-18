@@ -114,6 +114,7 @@ sub values {
   my @data;
   my ($row, $col, $cell_type, $seen_node);
 
+  # regex for extracting information from cell nodes
   state $cell_regex = qr(
      <c\                     # initial cell tag
       r="([A-Z]+)(\d+)"      # capture col and row ($1 and $2)
@@ -133,8 +134,12 @@ sub values {
        </c>                  #    followed by a closing cell tag
       )
     )x;
-  # NOTE : this regex uses capturing groups; I tried with named captures instead
-  # but this doubled the execution time on big Excel files
+  # NOTE : this regex uses capturing groups; it would be more readable with named
+  # captures instead, but this doubles the execution time on big Excel files, so I
+  # came back to plain old capturing groups.
+
+  # does this instance want date formatting ?
+  my $has_date_formatter = $self->frontend->date_formatter;
 
   # parse worksheet XML, gathering all cells
   my $contents = $self->_zip_member_contents($self->_zip_member_name_for_sheet($sheet));
@@ -153,10 +158,12 @@ sub values {
       $val = $self->strings->[$val];
     }
     else {
+      # this is a plain value
       ($val) = ($inner =~ m[<v>(.*?)</v>])           if !defined $val && $inner;
       _decode_xml_entities($val) if $val && $cell_type eq 'str';
 
-      if ($style && defined $val && $val >= 0) {
+      # if necessary, transform the numeric value into a formatted date
+      if ($has_date_formatter && $style && defined $val && $val >= 0) {
         my $date_style = $self->date_styles->[$style];
         $val = $self->formatted_date($val, $date_style)    if $date_style;
       }
@@ -213,7 +220,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020 by Laurent Dami.
+Copyright 2020,2021 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

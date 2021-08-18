@@ -100,6 +100,7 @@ sub _date_styles {
 
     # regular node treatement
     if ($xml_reader->name eq 'numFmts') {
+      # start parsing nodes for numeric formats
       $expected_subnode = [numFmt => $xml_reader->depth+1 => sub {
                              my $id   = $xml_reader->getAttribute('numFmtId');
                              my $code = $xml_reader->getAttribute('formatCode');
@@ -108,6 +109,7 @@ sub _date_styles {
     }
 
     elsif ($xml_reader->name eq 'cellXfs') {
+      # start parsing nodes for cell formats
       $expected_subnode = [xf => $xml_reader->depth+1 => sub {
                              state $xf_count = 0;
                              my $numFmtId    = $xml_reader->getAttribute('numFmtId');
@@ -141,8 +143,9 @@ sub values {
   my ($self, $sheet) = @_;
 
   # prepare for traversing the XML structure
-  my $sheet_member_name = $self->_zip_member_name_for_sheet($sheet);
-  my $xml_reader        = $self->_xml_reader_for_zip_member($sheet_member_name);
+  my $has_date_formatter = $self->frontend->date_formatter;
+  my $sheet_member_name  = $self->_zip_member_name_for_sheet($sheet);
+  my $xml_reader         = $self->_xml_reader_for_zip_member($sheet_member_name);
   my @data;
   my ($row, $col, $cell_type, $cell_style, $seen_node);
 
@@ -185,7 +188,7 @@ sub values {
           # number, date, boolean, formula string or no type : content is already in $val
 
           # if this is a date, replace the numeric value by the formatted date
-          if ($cell_style && defined $val && $val >= 0) {
+          if ($has_date_formatter && $cell_style && defined $val && $val >= 0) {
             my $date_style = $self->date_styles->[$cell_style];
             $val = $self->formatted_date($val, $date_style)    if $date_style;
           }

@@ -87,7 +87,6 @@ sub _date_formatter {
       or die "cell with unexpected Excel date format : $xl_date_format";
 
     # formatting through strftime
-    no warnings 'uninitialized'; # because $s, $min, $h may be undef
     my $formatted_date = strftime($strftime_format, $s, $min, $h, $d, $m-1, $y-1900);
 
     return $formatted_date;
@@ -113,7 +112,7 @@ sub sheet_names {
 
 
 sub A1_to_num { # convert Excel A1 reference format to a number
-  my ($self, $string) = @_;;
+  my ($self, $string) = @_;
 
   # ordinal number for character just before 'A'
   state $base = ord('A') - 1;
@@ -131,13 +130,11 @@ sub A1_to_num { # convert Excel A1 reference format to a number
 sub formatted_date {
   my ($self, $val, $date_format, $date_formatter) = @_;
 
-  state $millisecond = 1 / (24*60*60*1000);
-
   # separate date (integer part) from time (fractional part)
   my $n_days = int($val);
   my $time   = $val - $n_days;
 
-  # convert $n_days into a date in Date::Calc format (year, month, day)nnn
+  # convert $n_days into a date in Date::Calc format (year, month, day)
   my $base_year  = $self->base_year;
   $n_days -= 1;                                       # because we need a 0-based value
   $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
@@ -145,20 +142,18 @@ sub formatted_date {
 
   # decode the fractional part (the time) into hours, minutes, seconds, milliseconds
   foreach my $subdivision (24, 60, 60, 1000) {
-    last if abs($time) < $millisecond;
     $time            *= $subdivision;
     my $time_portion  = int($time);
     $time            -= $time_portion;
-    push @d, $time_portion;
+    push @d, $time_portion; # date
   }
 
-  # at this point, @d contains (year, month, day, hour, minute, second, millisecond),
-  # where hour, minute, etc. may possibly be undef
-
   # call the date_formatter subroutine
-  $date_formatter //= $self->date_formatter;
+  $date_formatter //= $self->date_formatter
+    or die ref($self) . " has no date_formatter subroutine";
+  my $formatted_date = $date_formatter->($date_format, @d);
 
-  return $date_formatter->($date_format, @d);
+  return $formatted_date;
 }
 
 1;
@@ -371,7 +366,7 @@ C<day> is the numeric value of the day in month, starting at 1
 =item *
 
 C<$hour>, C<$minute>, C<$second>, C<$millisecond> obviously contain the corresponding
-numeric values. They may be undef (when the Excel cell value is a plain integer).
+numeric values.
 
 =back
 
