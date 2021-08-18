@@ -298,7 +298,7 @@ Numeric formats in Excel are complex to reproduce, in particular
 because they are locale-dependent; therefore the present module does not attempt
 to faithfully interpret Excel formats. It just infers from formats which
 cells should be presented as date and/or time values. All such values are then
-presented through the same E<date_formatter> routine. The default formatter
+presented through the same I<date_formatter> routine. The default formatter
 is based on L<POSIX/strftime>; other behaviours may be specified through the C<date_formatter>
 parameter (explained below).
 
@@ -435,7 +435,7 @@ showed similar ratios.
 
 Modules
 C<Excel::Reader::XLSX> (unpublished) and L<Data::XLSX::Parser>
-are based on L<XML::LibXML> like L<Excel::ValueReader::XLSX::LibXML>;
+are based on L<XML::LibXML> like L<Excel::ValueReader::XLSX::Backend::LibXML>;
 execution times for those three modules are very close.
 
 =head1 ACKNOWLEDGEMENTS
@@ -455,7 +455,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020 by Laurent Dami.
+Copyright 2020, 2021 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
