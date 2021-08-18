@@ -6,7 +6,7 @@ use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS

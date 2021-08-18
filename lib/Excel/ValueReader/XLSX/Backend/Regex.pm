@@ -4,7 +4,7 @@ use 5.10.1;
 use Moose;
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
