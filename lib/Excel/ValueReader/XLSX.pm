@@ -134,10 +134,15 @@ sub formatted_date {
   my $n_days = int($val);
   my $time   = $val - $n_days;
 
-  # convert $n_days into a date in Date::Calc format (year, month, day)
+  # Convert $n_days into a date in Date::Calc format (year, month, day).
+  # The algorithm is quite odd because in the 1900 system, 01.01.1900 == 0 while
+  # in the 1904 system, 01.01.1904 == 1; furthermore, in the 1900 system,
+  # Excel treats 1900 as a leap year.
   my $base_year  = $self->base_year;
-  $n_days -= 1;                                       # because we need a 0-based value
-  $n_days -=1 if $base_year == 1900 && $n_days >= 60; # Excel believes 1900 is a leap year
+  if ($base_year == 1900) {
+    my $is_after_february_1900 = $n_days > 60;
+    $n_days -= $is_after_february_1900 ? 2 : 1;
+  }
   my @d = Add_Delta_Days($base_year, 1, 1, $n_days);
 
   # decode the fractional part (the time) into hours, minutes, seconds, milliseconds
