@@ -10,9 +10,9 @@ use Module::Load::Conditional qw/check_install/;
 
 use Excel::ValueReader::XLSX;
 
-(my $xl_file = $0) =~ s/\.t$/.xlsx/;     # 'valuereader.xlsx' in the same directory
-(my $xl_1904 = $0) =~ s/\.t$/1904.xlsx/; # 'valuereader1904.xlsx'
-
+(my $xl_file    = $0) =~ s/\.t$/.xlsx/;         # 'valuereader.xlsx' in the same directory
+(my $xl_1904    = $0) =~ s/\.t$/1904.xlsx/;     # 'valuereader1904.xlsx'
+(my $xl_ulibuck = $0) =~ s/\w+.t$/ulibuck.xlsx/; # 'ulibuck.xlsx'
 
 my @expected_sheet_names = qw/Test Empty Entities Tab_entities Dates/;
 my @expected_values      = (  ["Hello", undef, undef, 22, 33, 55],
@@ -186,6 +186,13 @@ foreach my $backend (@backends) {
   my $reader_1904 = Excel::ValueReader::XLSX->new(xlsx => $xl_1904, using => $backend);
   my $dates_1904  = $reader_1904->values('Dates');
   is_deeply($dates_1904, \@expected_dates_1904, "dates in 1904 format, using $backend");
+
+  # some edge cases provided by https://github.com/ulibuck
+  my $reader_ulibuck = Excel::ValueReader::XLSX->new(xlsx => $xl_ulibuck, using => $backend);
+  my $example1       = $reader_ulibuck->values('Example');
+  note explain $example1;
+  is($example1->[3][2], '30.12.2021', 'date1904="false"');
+
 }
 
 done_testing();

@@ -58,8 +58,8 @@ sub _workbook_data {
         or die "sheet node without name";
       $sheets{$name} = $sheet_id++;
     }
-    elsif ($reader->name eq 'workbookPr' && $reader->getAttribute('date1904')) {
-      $base_year = 1904; # this workbook uses the 1904 calendar
+    elsif ($reader->name eq 'workbookPr' and my $attr_value = $reader->getAttribute('date1904')) {
+      $base_year = 1904 if $attr_value eq '1' or $attr_value eq 'true'; # this workbook uses the 1904 calendar
     }
   }
 
