@@ -5,7 +5,7 @@ use Moose;
 use Scalar::Util qw/looks_like_number/;
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
