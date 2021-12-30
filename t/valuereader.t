@@ -7,7 +7,6 @@ use List::MoreUtils           qw/all/;
 use Scalar::Util              qw/looks_like_number/;
 use Clone                     qw/clone/;
 use Module::Load::Conditional qw/check_install/;
-
 use Excel::ValueReader::XLSX;
 
 (my $xl_file    = $0) =~ s/\.t$/.xlsx/;         # 'valuereader.xlsx' in the same directory
@@ -121,8 +120,6 @@ my @expected_dates_1904 = (
 
 
 
-
-
 my @backends = ('Regex');
 push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
 
@@ -190,9 +187,9 @@ foreach my $backend (@backends) {
   # some edge cases provided by https://github.com/ulibuck
   my $reader_ulibuck = Excel::ValueReader::XLSX->new(xlsx => $xl_ulibuck, using => $backend);
   my $example1       = $reader_ulibuck->values('Example');
-  note explain $example1;
-  is($example1->[3][2], '30.12.2021', 'date1904="false"');
-
+  is($example1->[3][2], '30.12.2021', "date1904=\"false\", using $backend");
+  my $example2       = $reader_ulibuck->values('Example two');
+  is($example2->[12][2], '# Dummy', "# Dummy, using $backend");
 }
 
 done_testing();

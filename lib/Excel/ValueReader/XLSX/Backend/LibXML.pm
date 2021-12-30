@@ -153,8 +153,11 @@ sub values {
   # iterate through XML nodes
  NODE:
   while ($xml_reader->read) {
-    next NODE if $xml_reader->nodeType == XML_READER_TYPE_END_ELEMENT;
     my $node_name = $xml_reader->name;
+    my $node_type = $xml_reader->nodeType;
+
+    last NODE if $node_name eq 'sheetData' && $node_type == XML_READER_TYPE_END_ELEMENT;
+    next NODE if $node_type == XML_READER_TYPE_END_ELEMENT;
 
     if ($node_name eq 'c') {
       # new cell node : store its col/row reference and its type
