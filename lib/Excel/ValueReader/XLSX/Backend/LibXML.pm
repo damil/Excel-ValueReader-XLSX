@@ -182,8 +182,13 @@ sub values {
 
       if ($seen_node eq 'v')  {
         if ($cell_type eq 's') {
-          $val = $self->strings->[$val]; # string -- pointer into the global
-                                         # array of shared strings
+          if (looks_like_number($val)) {
+            $val = $self->strings->[$val]; # string -- pointer into the global
+                                           # array of shared strings
+          }
+          else {
+            warn "unexpected non-numerical value: $val inside a node of shape <v t='s'>\n";
+          }
         }
         elsif ($cell_type eq 'e') {
           $val = undef; # error -- silently replace by undef
