@@ -1,5 +1,8 @@
 Revision history for Excel-ValueReader-XLSX
 
+1.07 31.12.2021
+  - oops, forgot a file in MANIFEST
+
 1.06 30.12.2021
   - fix 2 bugs signaled by https://github.com/ulibuck  
 
