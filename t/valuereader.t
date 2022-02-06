@@ -146,6 +146,14 @@ foreach my $backend (@backends) {
   my $empty  = $reader->values('Empty');
   is_deeply($empty, [], "empty values using $backend");
 
+
+  # check a data table
+  my $table = $reader->table('Entities');
+  is $table->[0]{Name},   'amp'       , '1st table row, name';
+  is $table->[0]{Letter}, 'ampersand' , '1st table row, letter';
+  is $table->[-1]{Name},  'yuml' ,      'last table row, name';
+  is_deeply([keys %{$table->[0]}], [qw(Num Name	Char Cap/small Letter Variant)], 'column names');
+
   # check a pivot table
   my $tab_entities = $reader->values('Tab_entities');
   is_deeply($tab_entities, \@expected_tab_entities, "tab_entities using $backend");

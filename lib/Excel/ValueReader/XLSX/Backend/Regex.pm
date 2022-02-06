@@ -3,9 +3,11 @@ use utf8;
 use 5.10.1;
 use Moose;
 use Scalar::Util qw/looks_like_number/;
+use Carp         qw/croak/;
+
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -179,6 +181,41 @@ sub values {
 
   return \@data;
 }
+
+
+sub _table_targets {
+  my ($self, $rel_xml) = @_;
+
+  my @table_targets = $rel_xml =~ m[<Relationship .*? Target="../tables/table(\d+)\.xml"]g;
+  return @table_targets;
+}
+
+
+sub _parse_table_xml {
+  my ($self, $xml) = @_;
+
+  state $table_regex = qr{
+     <table .+? displayName="(\w+)"
+            .+? ref="([:A-Z0-9]+)"
+            .+? (headerRowCount="0")?
+            .+?>
+    }x;
+
+  my ($name, $ref, $no_headers) = $xml =~ /$table_regex/g
+    or croak "invalid table XML";
+
+  # column names
+  my @columns;
+  while ($xml =~ m{<tableColumn id="(\d+)" name="([^"]+)"}g) {
+    $columns[$1] = $2;
+  }
+
+  # make indices 0-based instead of 1-based
+  shift @columns;
+
+  return ($name, $ref, \@columns, $no_headers);
+}
+
 
 #======================================================================
 # AUXILIARY FUNCTIONS

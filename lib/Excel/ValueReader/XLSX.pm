@@ -4,9 +4,12 @@ use Moose;
 use Module::Load          qw/load/;
 use Date::Calc            qw/Add_Delta_Days/;
 use POSIX                 qw/strftime modf/;
+use Carp                  qw/croak/;
 use feature 'state';
+# see also : require Hash::Type in sub table{}
 
-our $VERSION = '1.07';
+
+our $VERSION = '1.08';
 
 #======================================================================
 # ATTRIBUTES
@@ -175,6 +178,105 @@ sub formatted_date {
   return $formatted_date;
 }
 
+
+
+sub old_table {
+  my ($self, $sheet) = @_;
+
+  require Hash::Type; # only loaded when this method is used
+
+  # get raw values from the sheet
+  my $values = $self->values($sheet);
+
+  # take headers from first row
+  my $h_type = Hash::Type->new(@{shift @$values});
+
+  # build a table of pseudo-hashes
+  my @table;
+  push @table, $h_type->new(@$_) while $_ = shift @$values;
+
+  return \@table;
+}
+
+
+
+my @table_info_fields = qw/sheet ref table_columns no_headers/;
+
+sub table {
+  my ($self, %args) = @_;
+
+  require Hash::Type; # only loaded when this method is used
+
+  if (my $table_name = delete $args{name}) {
+    !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
+    @args{@table_info_fields} = @{$self->backend->table_info->{$table_name}}
+      or croak "no table info for table: $table_name";
+  }
+
+  # TODO : check for invalid args
+
+  # get raw values from the sheet
+  my $values = $self->values($args{sheet});
+
+  # restrict to the table subrange (if applicable)
+  $values = $self->_subrange($values, $args{ref}) if $args{ref};
+
+  # take headers from first row if not already given
+  $args{table_columns} //= $values->[0];
+
+  # if this table has headers (which is almost always the case), drop the header row
+  shift @$values unless $args{no_headers};
+
+
+  # build a table of pseudo-hashes
+  my $h_type = Hash::Type->new(@{$args{table_columns}});
+  my @table;
+  while (my $vals = shift @$values) {
+    my $row = $h_type->new(@$vals);
+
+    # TODO : support a "filter => " arg to filter rows
+    push @table, $row;
+  }
+
+  # sort the table if required
+  if ($args{order_by}) {
+    my $cmp = $h_type->cmp($args{order_by});
+    @table = sort $cmp @table;
+  }
+
+
+  return \@table;
+}
+
+
+sub _subrange {
+  my ($self, $values, $ref) = @_;
+
+  # parse rows and columns from the $ref string (of shape like for example "A1:D34")
+  my ($col1, $row1, $col2, $row2) = $ref =~ /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/
+    or croak "_subrange : invalid ref: $ref";
+
+  # restrict to the row range
+  if ($row1 > 1 || $row2 < @$values){
+    $values = [ @$values[$row1-1 .. $row2-1] ];
+  }
+
+  # restrict to the column range
+  my @col_nums = map {$self->A1_to_num($_) - 1} ($col1, $col2);
+  if ($col_nums[0] > 1){ # THINK : should check if $colnum2 is smaller that the max row size ??
+    my @col_range = ($col_nums[0] .. $col_nums[1]);
+    $values = [map { [ @$_[@col_range] ]} @$values];
+  }
+
+  return $values;
+}
+
+
+
+# method to be moved to Backend.pm
+
+
+
 1;
 
 
@@ -199,6 +301,13 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
      my $n_rows = @$grid;
      print "sheet $sheet_name has $n_rows rows; ",
            "first cell contains : ", $grid->[0][0];
+     
+     #or
+     
+     my $table       = $reader->table(name => $table_name, order_by => "foo:num, bar:alpha");
+     my $n_data_rows = @$table;
+     print "table $table_name has $n_data_rows rows; ",
+           "field 'foo' in first row contains : ", $table->[0]{foo};
   }
 
 =head1 DESCRIPTION
@@ -274,6 +383,20 @@ like this :
 
   my $nb_rows = @$grid;
   my $nb_cols = max map {scalar @$_} @$grid; # must import List::Util::max
+
+=head2 table
+
+  my $table = $reader->table($sheet);
+
+Treats the sheet as a data table, where the first row contains column headers,
+and the subsequent rows contain column values.
+The method returns a reference to an array of hashes, all with the same keys,
+corresponding to headers found on the first row in the sheet.
+
+The C<$sheet> argument is either a sheet name or a sheet position, like for the L</values> method.
+
+Technically, the returned hashes are are not plain Perl hashes, but tied hashes built through
+the L<Hash::Type> module.
 
 
 =head1 AUXILIARY METHODS
