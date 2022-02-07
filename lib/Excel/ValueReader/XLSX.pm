@@ -6,7 +6,19 @@ use Date::Calc            qw/Add_Delta_Days/;
 use POSIX                 qw/strftime modf/;
 use Carp                  qw/croak/;
 use feature 'state';
-# see also : require Hash::Type in sub table{}
+
+
+=begin TODO
+
+  - doc
+  - tests for tables
+  - libxml implementation
+  - 
+
+
+=cut
+
+
 
 
 our $VERSION = '1.08';
@@ -227,21 +239,13 @@ sub table {
   # if this table has headers (which is almost always the case), drop the header row
   shift @$values unless $args{no_headers};
 
-
   # build a table of pseudo-hashes
-  my $h_type = Hash::Type->new(@{$args{table_columns}});
+  my @cols = @{$args{table_columns}};
   my @table;
   while (my $vals = shift @$values) {
-    my $row = $h_type->new(@$vals);
-
-    # TODO : support a "filter => " arg to filter rows
-    push @table, $row;
-  }
-
-  # sort the table if required
-  if ($args{order_by}) {
-    my $cmp = $h_type->cmp($args{order_by});
-    @table = sort $cmp @table;
+    my %row;
+    @row{@cols} = @$vals;
+    push @table, \%row;
   }
 
 

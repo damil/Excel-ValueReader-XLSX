@@ -16,7 +16,6 @@ my $builder = Module::Build->new(
       'Moose'                     => 0,
       'Date::Calc'                => 0,
       'POSIX'                     => 0,
-      'Hash::Type'                => 0,
      },
     recommends => {
       'XML::LibXML::Reader'       => 0,
