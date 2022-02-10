@@ -204,14 +204,9 @@ sub _parse_table_xml {
   my ($name, $ref, $no_headers) = $xml =~ /$table_regex/g
     or croak "invalid table XML";
 
-  # column names
-  my @columns;
-  while ($xml =~ m{<tableColumn id="(\d+)" name="([^"]+)"}g) {
-    $columns[$1] = $2;
-  }
+  # column names. Other attributes from <tableColumn> nodes are ignored.
+  my @columns = ($xml =~ m{<tableColumn [^>]+? name="([^"]+)"}gx);
 
-  # make indices 0-based instead of 1-based
-  shift @columns;
 
   return ($name, $ref, \@columns, $no_headers);
 }

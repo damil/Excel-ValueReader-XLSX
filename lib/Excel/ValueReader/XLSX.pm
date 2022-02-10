@@ -191,41 +191,25 @@ sub formatted_date {
 }
 
 
-
-sub old_table {
-  my ($self, $sheet) = @_;
-
-  require Hash::Type; # only loaded when this method is used
-
-  # get raw values from the sheet
-  my $values = $self->values($sheet);
-
-  # take headers from first row
-  my $h_type = Hash::Type->new(@{shift @$values});
-
-  # build a table of pseudo-hashes
-  my @table;
-  push @table, $h_type->new(@$_) while $_ = shift @$values;
-
-  return \@table;
-}
-
-
-
 my @table_info_fields = qw/sheet ref table_columns no_headers/;
+my $is_valid_arg      = "^(" . join("|", @table_info_fields) . ")\$";
 
 sub table {
-  my ($self, %args) = @_;
+  my $self = shift;
 
-  require Hash::Type; # only loaded when this method is used
+  # syntactic sugar : ->table('foo') is treated as ->table(name => 'foo')
+  my %args = @_ == 1 ? (name => $_[0]) : @_;
 
+  # if called with a table name, derive all other args from internal workbook info
   if (my $table_name = delete $args{name}) {
     !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
     @args{@table_info_fields} = @{$self->backend->table_info->{$table_name}}
       or croak "no table info for table: $table_name";
   }
 
-  # TODO : check for invalid args
+  # check args
+  my @invalid_args = grep {!/$is_valid_arg/} keys %args;
+  croak "invalid args to table(): " . join ", ", @invalid_args if @invalid_args;
 
   # get raw values from the sheet
   my $values = $self->values($args{sheet});
@@ -233,14 +217,16 @@ sub table {
   # restrict to the table subrange (if applicable)
   $values = $self->_subrange($values, $args{ref}) if $args{ref};
 
-  # take headers from first row if not already given
+  # take headers from first row if not already given in $args{table_columns}
   $args{table_columns} //= $values->[0];
 
   # if this table has headers (which is almost always the case), drop the header row
   shift @$values unless $args{no_headers};
 
-  # build a table of pseudo-hashes
+  # build a table of hashes. This could be done with a simple map(), but using a loop
+  # avoids to store 2 copies of cell values in memory : @$values is shifted when @table is pushed.
   my @cols = @{$args{table_columns}};
+  croak "table contains undefined columns" if grep {!defined $_} @cols;
   my @table;
   while (my $vals = shift @$values) {
     my %row;
@@ -249,7 +235,7 @@ sub table {
   }
 
 
-  return \@table;
+  return wantarray ? (\@cols, \@table) : \@table;
 }
 
 
@@ -274,11 +260,6 @@ sub _subrange {
 
   return $values;
 }
-
-
-
-# method to be moved to Backend.pm
-
 
 
 1;
