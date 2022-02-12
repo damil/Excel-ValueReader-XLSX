@@ -118,6 +118,10 @@ my @expected_dates_1904 = (
   ['11.07.2024',                            ],
 );
 
+
+my @expected_tab_names = qw(Entities tab_foobar tab_in_middle_of_sheet tab_without_headers Cols_with_entities);
+
+
 my @expected_tab_foobar = (
   {foo => 11, bar => 22},
   {foo => 33, bar => 44},
@@ -134,7 +138,9 @@ my @expected_tab_no_headers = (
   {col1 => 'ee', col2 => 'ff',  col3 => 'gg'},
  );
 
-
+my @expected_tab_cols_with_entities = (
+  {'col<' => 'foo', 'col&' => 'bar', 'col>' => 'bim'},
+);
 
 
 my @backends = ('Regex');
@@ -171,6 +177,8 @@ foreach my $backend (@backends) {
   is $entities->[0]{Letter}, 'ampersand' , "1st table row, letter, using $backend";
   is $entities->[-1]{Name},  'yuml' ,      "last table row, name, using $backend";
 
+  is_deeply([$reader->table_names], \@expected_tab_names, "table names, using $backend");
+
   my $tab_foobar = $reader->table('tab_foobar');
   is_deeply($tab_foobar, \@expected_tab_foobar, "tab_foobar, using $backend");
 
@@ -180,9 +188,8 @@ foreach my $backend (@backends) {
   my ($col_headers, $tab_no_headers) = $reader->table('tab_without_headers');
   is_deeply($tab_no_headers, \@expected_tab_no_headers, "tab_no_headers, using $backend");
 
-
-  # TODO : badam_bum, no_headers, call in list context
-
+  my $tab_cols_with_entities = $reader->table('Cols_with_entities');
+  is_deeply($tab_cols_with_entities, \@expected_tab_cols_with_entities, "tab_cols_with_entities, using $backend");
 
   # check a pivot table
   my $tab_entities = $reader->values('Tab_entities');

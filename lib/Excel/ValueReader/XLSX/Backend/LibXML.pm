@@ -66,6 +66,7 @@ sub _workbook_data {
   return {sheets => \%sheets, base_year => $base_year};
 }
 
+
 sub _date_styles {
   my $self = shift;
 
@@ -140,13 +141,13 @@ sub _xml_reader {
 }
 
 
-
 sub _xml_reader_for_zip_member {
   my ($self, $member_name) = @_;
 
   my $contents = $self->_zip_member_contents($member_name);
   return $self->_xml_reader($contents);
 }
+
 
 sub values {
   my ($self, $sheet) = @_;
@@ -263,6 +264,7 @@ sub _table_targets {
     if ($node_name eq 'Relationship') {
       my $target     = $xml_reader->getAttribute('Target');
       if ($target =~ m[tables/table(\d+)\.xml]) {
+        # just store the table id (positive integer)
         push @table_targets, $1;
       }
     }
@@ -325,7 +327,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020,2021 by Laurent Dami.
+Copyright 2020-2022 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

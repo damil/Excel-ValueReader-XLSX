@@ -79,6 +79,7 @@ sub _date_styles {
   return \@date_styles; # array of shape (xf_index => numFmt_code)
 }
 
+
 sub _extract_xf {
   my ($self, $xml) = @_;
 
@@ -187,7 +188,7 @@ sub _table_targets {
   my ($self, $rel_xml) = @_;
 
   my @table_targets = $rel_xml =~ m[<Relationship .*? Target="../tables/table(\d+)\.xml"]g;
-  return @table_targets;
+  return @table_targets; # a list of positive integers corresponding to table ids
 }
 
 
@@ -201,12 +202,15 @@ sub _parse_table_xml {
             .+?>
     }x;
 
+  # extract relevant attributes from the <table> node
   my ($name, $ref, $no_headers) = $xml =~ /$table_regex/g
     or croak "invalid table XML";
 
   # column names. Other attributes from <tableColumn> nodes are ignored.
   my @columns = ($xml =~ m{<tableColumn [^>]+? name="([^"]+)"}gx);
 
+  # decode entites for all string values
+  _decode_xml_entities($_) for $name, @columns;
 
   return ($name, $ref, \@columns, $no_headers);
 }

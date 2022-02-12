@@ -54,11 +54,11 @@ sub _table_info {
   foreach my $table_member (map {$_->fileName} @table_members) {
     my ($table_id)     = $table_member =~ /table(\d+)\.xml/;
     my $table_xml      = $self->_zip_member_contents($table_member);
-    my ($name, $ref, $table_columns, $no_headers) 
-                       = $self->_parse_table_xml($table_xml);
+    my ($name, $ref, $table_columns, $no_headers)
+                       = $self->_parse_table_xml($table_xml); # defined in subclass
     my $sheet_id       = $self->sheet_for_table->[$table_id]
       or croak "could not find sheet id for table $table_id";
-    $table_info{$name} = [$sheet_id, $ref, $table_columns, $no_headers];
+    $table_info{$name} = [$sheet_id, $table_id, $ref, $table_columns, $no_headers];
   }
 
   return \%table_info;
@@ -121,7 +121,6 @@ sub Excel_builtin_date_formats {
   return @numFmt;
 }
 
-
 sub _zip_member_contents {
   my ($self, $member) = @_;
 
@@ -131,8 +130,6 @@ sub _zip_member_contents {
 
   return $contents;
 }
-
-
 
 sub _zip_member_name_for_sheet {
   my ($self, $sheet) = @_;
@@ -148,14 +145,6 @@ sub _zip_member_name_for_sheet {
   # construct member name for that sheet
   return "xl/worksheets/sheet$id.xml";
 }
-
-
-sub values {croak "values() should be defined in a backend subclass"}
-
-
-
-
-
 
 
 1;
@@ -209,12 +198,14 @@ some metadata information about the workbook
 
 =head1 ABSTRACT METHODS
 
+Not defined in this abstract class, but implemented in subclasses.
+
 =over
 
 =item values
 
 Inspects all cells within the XSLX files and returns a bi-dimensional array of values.
-Not defined in this abstract class, but implemented in subclasses.
+
 
 =back
 
