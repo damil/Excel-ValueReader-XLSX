@@ -378,7 +378,7 @@ like this :
 
   my @table_names = $reader->table_names;
 
-Returns the list of names of table registered in this workbook.
+Returns the list of names of tables registered in this workbook.
 
 
 =head2 table
@@ -393,7 +393,8 @@ Returns the list of names of table registered in this workbook.
                                        );
 
 In its simplest form, this method returns the content of an Excel table referenced by its table name
-(in Excel, the table name appears and can be modified through the Table tools / Design tab).
+(in Excel, the table name appears and can be modified through the ribbon tab 
+entry "Table tools / Design").
 The table name is passed either through the named argument C<name>, or positionally as unique argument
 to the method.
 
@@ -615,6 +616,10 @@ execution times for those three modules are very close.
 
 David Flink signaled (and fixed) a bug about strings with embedded newline characters
 
+=item * 
+
+Ulibuck signaled bugs several minor bugs on the LibXML backend
+
 =back
 
 
@@ -624,7 +629,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020-2022 by Laurent Dami.
+Copyright 2020-2023 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
