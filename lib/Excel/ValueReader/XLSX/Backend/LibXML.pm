@@ -19,7 +19,6 @@ sub _strings {
   my $reader = $self->_xml_reader_for_zip_member('xl/sharedStrings.xml');
 
   my @strings;
-  #  my $last_string = '';
   my $last_string;
  NODE:
   while ($reader->read) {
@@ -33,7 +32,6 @@ sub _strings {
     elsif ($node_name eq '#text') {
       $last_string .= $reader->value;
     }
-#    elsif ($reader->isEmptyElement) { push @strings, ''; }
   }
 
   push @strings, $last_string if defined $last_string;
