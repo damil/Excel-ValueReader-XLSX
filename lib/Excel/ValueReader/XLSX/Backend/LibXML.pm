@@ -7,7 +7,7 @@ use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -157,7 +157,8 @@ sub values {
   my $sheet_member_name  = $self->_zip_member_name_for_sheet($sheet);
   my $xml_reader         = $self->_xml_reader_for_zip_member($sheet_member_name);
   my @data;
-  my ($row, $col, $cell_type, $cell_style, $seen_node);
+  my ($row, $col) = (0, 0);
+  my ($cell_type, $cell_style, $seen_node);
 
   # iterate through XML nodes
  NODE:
@@ -168,11 +169,18 @@ sub values {
     last NODE if $node_name eq 'sheetData' && $node_type == XML_READER_TYPE_END_ELEMENT;
     next NODE if $node_type == XML_READER_TYPE_END_ELEMENT;
 
+    if ($node_name eq 'row') {
+      my $row_num = $xml_reader->getAttribute('r');
+      $row        = $row_num // $row + 1;
+      $col        = 0;
+    }
+
     if ($node_name eq 'c') {
       # new cell node : store its col/row reference and its type
       my $A1_cell_ref = $xml_reader->getAttribute('r');
-      ($col, $row)    = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
-      $col            = $self->A1_to_num($col);
+      ($col, $row)    = $A1_cell_ref ? do {my ($c, $r) = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
+                                           ($self->A1_to_num($c), $r  )}
+                                     :     ($col+1,               $row);
       $cell_type      = $xml_reader->getAttribute('t');
       $cell_style     = $xml_reader->getAttribute('s');
       $seen_node      = '';

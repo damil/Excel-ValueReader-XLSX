@@ -7,7 +7,7 @@ use POSIX                 qw/strftime modf/;
 use Carp                  qw/croak/;
 use feature 'state';
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 
 #======================================================================
 # ATTRIBUTES
@@ -614,9 +614,10 @@ execution times for those three modules are very close.
 
 =item * 
 
-David Flink signaled (and fixed) a bug about strings with embedded newline characters
+David Flink signaled (and fixed) a bug about strings with embedded newline characters, and
+signaled that the 'r' attribute in cells is optional.
 
-=item * 
+=item *
 
 Ulibuck signaled bugs several minor bugs on the LibXML backend
 
