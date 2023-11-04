@@ -4,8 +4,9 @@ use 5.10.1;
 use Moose;
 use Archive::Zip          qw(AZ_OK);
 use Carp                  qw/croak/;
+use Scalar::Util          qw/openhandle/;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 #======================================================================
 # ATTRIBUTES
@@ -14,14 +15,13 @@ has 'frontend'      => (is => 'ro', isa => 'Excel::ValueReader::XLSX',
                         required => 1, weak_ref => 1,
                         handles => [qw/A1_to_num formatted_date/]);
 
-
-
 my %lazy_attrs = ( zip             => 'Archive::Zip',
                    date_styles     => 'ArrayRef',
                    strings         => 'ArrayRef',
                    workbook_data   => 'HashRef',
                    table_info      => 'HashRef',
-                   sheet_for_table => 'ArrayRef',  );
+                   sheet_for_table => 'ArrayRef',
+                  );
 
 while (my ($name, $type) = each %lazy_attrs) {
   has $name => (is => 'ro', isa => $type, builder => "_$name", init_arg => undef, lazy => 1);
@@ -37,10 +37,12 @@ while (my ($name, $type) = each %lazy_attrs) {
 sub _zip {
   my $self = shift;
 
-  my $xlsx_file = $self->frontend->xlsx;
-  my $zip       = Archive::Zip->new;
-  my $result    = $zip->read($xlsx_file);
-  $result == AZ_OK  or die "cannot unzip $xlsx_file";
+  my $zip                  = Archive::Zip->new;
+  my $xlsx_source          = $self->frontend->xlsx;
+  my ($meth, $source_name) = openhandle($xlsx_source) ? (readFromFileHandle => 'filehandle')
+                                                      : (read               => $xlsx_source);
+  my $result               = $zip->$meth($xlsx_source);
+  $result == AZ_OK  or die "cannot unzip from $source_name";
 
   return $zip;
 }

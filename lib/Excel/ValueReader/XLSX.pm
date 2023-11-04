@@ -7,21 +7,19 @@ use POSIX                 qw/strftime modf/;
 use Carp                  qw/croak/;
 use feature 'state';
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 #======================================================================
 # ATTRIBUTES
 #======================================================================
 
 # PUBLIC ATTRIBUTES
-has 'xlsx'            => (is => 'ro', isa => 'Str', required => 1);      # path of xlsx file
+has 'xlsx'            => (is => 'ro', isa => 'Str|FileHandle', required => 1);      # path of xlsx file
 has 'using'           => (is => 'ro', isa => 'Str', default => 'Regex'); # name of backend class
 has 'date_format'     => (is => 'ro', isa => 'Str', default => '%d.%m.%Y');
 has 'time_format'     => (is => 'ro', isa => 'Str', default => '%H:%M:%S');
-has 'datetime_format' => (is => 'ro', isa => 'Str',
-                          builder => '_datetime_format', lazy => 1);
-has 'date_formatter'  => (is => 'ro',   isa => 'Maybe[CodeRef]',
-                          builder => '_date_formatter', lazy => 1);
+has 'datetime_format' => (is => 'ro', isa => 'Str',            builder => '_datetime_format', lazy => 1);
+has 'date_formatter'  => (is => 'ro', isa => 'Maybe[CodeRef]', builder => '_date_formatter', lazy => 1);
 
 
 
@@ -39,12 +37,8 @@ around BUILDARGS => sub {
   my $orig  = shift;
   my $class = shift;
 
-  if ( @_ == 1 && !ref $_[0] ) {
-    return $class->$orig(xlsx => $_[0]);
-  }
-  else {
-    return $class->$orig(@_);
-  }
+  return ( @_ == 1 && !ref $_[0] ) ? $class->$orig(xlsx => $_[0])
+                                   : $class->$orig(@_);
 };
 
 
@@ -260,7 +254,7 @@ sub _subrange {
 
   # restrict to the column range
   my @col_nums = map {$self->A1_to_num($_) - 1} ($col1, $col2);
-  if ($col_nums[0] > 1){ # THINK : should check if $colnum2 is smaller that the max row size ??
+  if ($col_nums[0] > 1){
     my @col_range = ($col_nums[0] .. $col_nums[1]);
     $values = [map { [ @$_[@col_range] ]} @$values];
   }
@@ -281,11 +275,11 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
 
 =head1 SYNOPSIS
 
-  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename);
+  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename_or_handle);
   # .. or with syntactic sugar :
-  my $reader = Excel::ValueReader::XLSX->new($filename);
+  my $reader = Excel::ValueReader::XLSX->new($filename_or_handle);
   # .. or with LibXML backend :
-  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename,
+  my $reader = Excel::ValueReader::XLSX->new(xlsx => $filename_or_handle,
                                              using => 'LibXML');
   
   foreach my $sheet_name ($reader->sheet_names) {
@@ -332,17 +326,18 @@ It is probably safer but about three times slower than the Regex backend
 
 =head2 new
 
-  my $reader = Excel::ValueReader::XLSX->new(xlsx  => $filename,
+  my $reader = Excel::ValueReader::XLSX->new(xlsx  => $filename_or_handle,
                                              using => $backend,
                                              %date_formatting_options);
 
-The C<xlsx> argument is mandatory and points to the C<.xlsx> file to be parsed.
+The C<xlsx> argument is mandatory and points to the C<.xlsx> file to be parsed,
+or is an open filehandle.
 The C<using> argument is optional; it specifies the backend to be used for parsing;
 default is 'Regex'.
 
 As syntactic sugar, a shorter form is admitted :
 
-  my $reader = Excel::ValueReader::XLSX->new($filename);
+  my $reader = Excel::ValueReader::XLSX->new($filename_or_handle);
 
 Optional parameters for formatting date and time values
 are described in the L</DATE AND TIME FORMATS> section below.
