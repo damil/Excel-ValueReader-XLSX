@@ -9,7 +9,7 @@ my $builder = Module::Build->new(
     dist_version_from   => 'lib/Excel/ValueReader/XLSX.pm',
 
     requires => {
-      'perl'                      => "5.010001",
+      'perl'                      => "5.012001",
       'utf8'                      => 0,
       'Carp'                      => 0,
       'Archive::Zip'              => 0,
