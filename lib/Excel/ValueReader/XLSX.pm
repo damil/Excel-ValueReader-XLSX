@@ -26,7 +26,7 @@ has 'date_formatter'  => (is => 'ro', isa => 'Maybe[CodeRef]', builder => '_date
 # ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
 has 'backend'         => (is => 'ro',   isa => 'Object', init_arg => undef,
                           builder => '_backend', lazy => 1,
-                          handles => [qw/values base_year sheets/]);
+                          handles => [qw/values base_year sheets active_sheet/]);
 
 #======================================================================
 # BUILDING
@@ -296,8 +296,12 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
      print "table $table_name has $n_data_rows rows and $n_columns columns; ",
            "column 'foo' in first row contains : ", $rows->[0]{foo};
   }
+  
+  my $first_grid = $reader->values(1); # if using numerical indices, start at 1
 
 =head1 DESCRIPTION
+
+=head2 Purpose
 
 This module reads the contents of an Excel file in XLSX format.
 Unlike other modules like L<Spreadsheet::ParseXLSX> or L<Spreadsheet::XLSX>, 
@@ -305,11 +309,13 @@ there is no support for reading formulas, formats or other Excel internal
 information; all you get are plain values -- but you get them much
 faster ! Besides, this module also has support for parsing Excel tables.
 
-This front module has two different backends for extracting values :
+=head2 Backends
+
+Two different backends may be used for extracting values :
 
 =over
 
-=item Regex (default)
+=item Regex
 
 this backend uses regular expressions to parse the XML content.
 
@@ -320,6 +326,16 @@ It is probably safer but about three times slower than the Regex backend
 (but still much faster than L<Spreadsheet::ParseXLSX>).
 
 =back
+
+The default is the C<Regex> backend.
+
+=head2 Sheet numbering
+
+Although worksheets are usually accessed by name, they may also
+be accessed by numerical indices, I<starting at value 1>.
+Some other Perl parsing modules use a different convention, where the first sheet has index 0.
+Here index 1 was chosen to be consistent with the common API for "collections" in
+Microsoft Office object model.
 
 
 =head1 METHODS
@@ -348,6 +364,13 @@ are described in the L</DATE AND TIME FORMATS> section below.
   my @sheets = $reader->sheet_names;
 
 Returns the list of worksheet names, in the same order as in the Excel file.
+
+=head2 active_sheet
+
+  my $active_sheet_number = $reader->active_sheet;
+
+Returns the numerical index (starting at 1) of the sheet that was active when the file was last saved.
+May return C<undef>.
 
 =head2 values
 
@@ -614,7 +637,11 @@ signaled that the 'r' attribute in cells is optional.
 
 =item *
 
-Ulibuck signaled bugs several minor bugs on the LibXML backend
+Ulibuck signaled bugs several minor bugs on the LibXML backend.
+
+=item *
+
+H.Merijn Brand suggested additions to the API.
 
 =back
 

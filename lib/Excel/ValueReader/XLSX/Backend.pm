@@ -90,17 +90,10 @@ sub _sheet_for_table {
 #======================================================================
 
 
-sub base_year {
-  my ($self) = @_;
-  return $self->workbook_data->{base_year};
-}
-
-sub sheets {
-  my ($self) = @_;
-  return $self->workbook_data->{sheets};
-}
-
-
+# accessors to workbook data
+sub base_year    {shift->workbook_data->{base_year}   }
+sub sheets       {shift->workbook_data->{sheets}      }
+sub active_sheet {shift->workbook_data->{active_sheet}}
 
 
 sub Excel_builtin_date_formats {

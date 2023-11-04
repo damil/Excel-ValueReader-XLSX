@@ -2,6 +2,7 @@ Revision history for Excel-ValueReader-XLSX
 
 1.11 05.11.2023
   - new() can take a filehandle instead of a filename
+  - additional method ->active_sheet
 
 1.10 12.02.2023
   - support cells without an 'r' attribute (David Flink++)

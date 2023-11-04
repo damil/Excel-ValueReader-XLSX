@@ -38,18 +38,24 @@ sub _strings {
 sub _workbook_data {
   my $self = shift;
 
+  my %workbook_data;
+
   # read from the workbook.xml zip member
   my $workbook = $self->_zip_member_contents('xl/workbook.xml');
 
   # extract sheet names
-  my @sheet_names = ($workbook =~ m[<sheet name="(.+?)"]g);
-  my %sheets      = map {$sheet_names[$_] => $_+1} 0 .. $#sheet_names;
+  my @sheet_names        = ($workbook =~ m[<sheet name="(.+?)"]g);
+  $workbook_data{sheets} = {map {$sheet_names[$_] => $_+1} 0 .. $#sheet_names};
 
   # does this workbook use the 1904 calendar ?
   my ($date1904) = $workbook =~ m[date1904="(.+?)"];
-  my $base_year  = $date1904 && $date1904 =~ /^(1|true)$/ ? 1904 : 1900;
+  $workbook_data{base_year} = $date1904 && $date1904 =~ /^(1|true)$/ ? 1904 : 1900;
 
-  return {sheets => \%sheets, base_year => $base_year};
+  # active sheet
+  my ($active_tab) = $workbook =~ m[<workbookView[^>]+activeTab="(\d+)"];
+  $workbook_data{active_sheet} = $active_tab + 1 if defined $active_tab;
+
+  return \%workbook_data;
 }
 
 

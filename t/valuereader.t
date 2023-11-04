@@ -7,19 +7,17 @@ use List::MoreUtils           qw/all/;
 use Scalar::Util              qw/looks_like_number/;
 use Clone                     qw/clone/;
 use Module::Load::Conditional qw/check_install/;
-use Excel::ValueReader::XLSX;
 
+use Excel::ValueReader::XLSX;
 note "testing Excel::ValueReader::XLSX version $Excel::ValueReader::XLSX::VERSION";
 
-
 (my $tst_dir = $0) =~ s/valuereader\.t$//;
-$tst_dir       ||= ".";
-my $xl_file      = "$tst_dir/valuereader.xlsx";
-my $xl_1904      = "$tst_dir/valuereader1904.xlsx";
-my $xl_ulibuck   = "$tst_dir/ulibuck.xlsx";
-my $xl_mappe     = "$tst_dir/Mappe1.xlsx";
-my $xl_without_r = "$tst_dir/cells_without_r_attr.xlsx";
-
+$tst_dir       ||= "./";
+my $xl_file      = $tst_dir . "valuereader.xlsx";
+my $xl_1904      = $tst_dir . "valuereader1904.xlsx";
+my $xl_ulibuck   = $tst_dir . "ulibuck.xlsx";
+my $xl_mappe     = $tst_dir . "Mappe1.xlsx";
+my $xl_without_r = $tst_dir . "cells_without_r_attr.xlsx";
 
 my @expected_sheet_names = qw/Test Empty Entities Tab_entities Dates Tables/;
 my @expected_values      = (  ["Hello", undef, undef, 22, 33, 55],
@@ -32,6 +30,7 @@ my @expected_values      = (  ["Hello", undef, undef, 22, 33, 55],
                                "Hello after an empty row and col"],
                               ["cell\r\nwith\r\nembedded newlines"],
                              );
+my $expected_active_sheet = 6;
 
 my @expected_tab_entities  = (
   [],
@@ -221,6 +220,9 @@ sub run_tests {
   my @sheet_names = $reader->sheet_names;
   is_deeply(\@sheet_names, \@expected_sheet_names, "sheet names using $context");
 
+  # check active_sheet
+  is($reader->active_sheet, $expected_active_sheet, "active_sheet using $context");
+
   # check a regular sheet
   my $values = $reader->values('Test');
   is_deeply($values, \@expected_values, "values using $context");
@@ -298,6 +300,9 @@ sub run_tests {
   is($example1->[3][2], '30.12.2021', "date1904=\"false\", using $context");
   my $example2       = $reader_ulibuck->values('Example two');
   is($example2->[12][2], '# Dummy', "# Dummy, using $context");
+
+  # in this workbook the active_sheet is deliberately empty
+  ok(! defined $reader_ulibuck->active_sheet, "empty active_sheet, using $context");
 
   # https://github.com/damil/Excel-ValueReader-XLSX/issues/2 : empty string (ulibuck++)
   my $reader_mappe = Excel::ValueReader::XLSX->new(xlsx => $xl_mappe, using => $backend);
