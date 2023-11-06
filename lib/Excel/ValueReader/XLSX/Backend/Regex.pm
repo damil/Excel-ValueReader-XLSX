@@ -7,7 +7,7 @@ use Carp         qw/croak/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS

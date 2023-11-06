@@ -196,7 +196,7 @@ foreach my $backend (@backends) {
   run_tests(file => $xl_file, $backend);
 
   # open file and pass a filehandle
-  open my $fh, "+<:raw", $xl_file or die "could not open $xl_file";
+  open my $fh, "<:raw", $xl_file or die "could not open $xl_file: $!";
   run_tests(handle => $fh, $backend);
 }
 

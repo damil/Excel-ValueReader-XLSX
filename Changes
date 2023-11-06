@@ -1,5 +1,8 @@
 Revision history for Excel-ValueReader-XLSX
 
+1.12 06.11.2023
+  - fix bug in test suite (useless attempt to open a file in RW mode)
+
 1.11 05.11.2023
   - new() can take a filehandle instead of a filename
   - additional method ->active_sheet
