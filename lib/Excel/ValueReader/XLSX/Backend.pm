@@ -1,12 +1,12 @@
 package Excel::ValueReader::XLSX::Backend;
 use utf8;
-use 5.10.1;
+use 5.12.1;
 use Moose;
-use Archive::Zip          qw(AZ_OK);
+use Archive::Zip 1.61     qw(AZ_OK);
 use Carp                  qw/croak/;
 use Scalar::Util          qw/openhandle/;
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 #======================================================================
 # ATTRIBUTES
@@ -100,7 +100,7 @@ sub Excel_builtin_date_formats {
   my @numFmt;
 
   # source : section 18.8.30 numFmt (Number Format) in ECMA-376-1:2016
-  # Office Open XML File Formats — Fundamentals and Markup Language Reference
+  # Office Open XML File Formats - Fundamentals and Markup Language Reference
   $numFmt[14] = 'mm-dd-yy';
   $numFmt[15] = 'd-mmm-yy';
   $numFmt[16] = 'd-mmm';
@@ -217,3 +217,5 @@ Copyright 2021 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=cut

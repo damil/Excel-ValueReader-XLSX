@@ -1,12 +1,12 @@
 use utf8;
 use strict;
 use warnings;
-use Test::More;
-use List::Util                qw/max/;
-use List::MoreUtils           qw/all/;
-use Scalar::Util              qw/looks_like_number/;
-use Clone                     qw/clone/;
-use Module::Load::Conditional qw/check_install/;
+use Test::More 1.302195;
+use List::Util                     qw/max/;
+use List::MoreUtils                qw/all/;
+use Scalar::Util                   qw/looks_like_number/;
+use Clone                          qw/clone/;
+use Module::Load::Conditional 0.66 qw/check_install/;
 
 use Excel::ValueReader::XLSX;
 note "testing Excel::ValueReader::XLSX version $Excel::ValueReader::XLSX::VERSION";

@@ -1,5 +1,8 @@
 Revision history for Excel-ValueReader-XLSX
 
+1.13 06.11.2023
+  - minor fixes: typos, source improvements, avoid dependencies on unsafe modules (Merijn Brand++)
+
 1.12 06.11.2023
   - fix bug in test suite (useless attempt to open a file in RW mode)
 

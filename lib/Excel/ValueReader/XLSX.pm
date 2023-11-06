@@ -1,13 +1,13 @@
 package Excel::ValueReader::XLSX;
+use 5.12.1;
 use utf8;
 use Moose;
 use Module::Load          qw/load/;
 use Date::Calc            qw/Add_Delta_Days/;
 use POSIX                 qw/strftime modf/;
 use Carp                  qw/croak/;
-use feature 'state';
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 #======================================================================
 # ATTRIBUTES
@@ -432,7 +432,7 @@ behaviour :
 
 a specific range of cells within the sheet that contain the table rows and columns.
 The range must be expressed using traditional Excel notation,
-like for example C<"C9:E23"> (colums 3 to 5, rows 9 to 23).
+like for example C<"C9:E23"> (columns 3 to 5, rows 9 to 23).
 
 =item columns
 
@@ -509,7 +509,7 @@ The L<POSIX/strftime> format for representing times. The default is C<%H:%M:%S>.
 
 The L<POSIX/strftime> format for representing date and time together.
 The default is the concatenation of C<date_format> and C<time_format>, with
-a space inbetween.
+a space in between.
 
 =back
 
@@ -545,8 +545,9 @@ depending on the position in the format string, it may represent either a "month
 =item *
 
 C<year> is the full year, such as 1993 or 2021. The date system of the Excel file (either 1900 or 1904,
-see L<https://support.microsoft.com/en-us/office/date-systems-in-excel-e7fe7167-48a9-4b96-bb53-5612a800b487>) is properly taken into account. Excel has no support for dates prior to 1900 or 1904, so the
-C<year> component wil always be above this value.
+see L<https://support.microsoft.com/en-us/office/date-systems-in-excel-e7fe7167-48a9-4b96-bb53-5612a800b487>)
+is properly taken into account. Excel has no support for dates prior to 1900 or 1904, so the
+C<year> component will always be above this value.
 
 =item *
 
@@ -626,7 +627,7 @@ C<Excel::Reader::XLSX> (unpublished) and L<Data::XLSX::Parser>
 are based on L<XML::LibXML> like L<Excel::ValueReader::XLSX::Backend::LibXML>;
 execution times for those three modules are very close.
 
-=head1 ACKNOWLEDGEMENTS
+=head1 ACKNOWLEDGMENTS
 
 =over
 
@@ -641,7 +642,7 @@ Ulibuck signaled bugs several minor bugs on the LibXML backend.
 
 =item *
 
-H.Merijn Brand suggested additions to the API.
+H.Merijn Brand suggested additions to the API and several improvements to the code source.
 
 =back
 
@@ -656,3 +657,6 @@ Copyright 2020-2023 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=cut
+

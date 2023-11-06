@@ -1,13 +1,13 @@
 package Excel::ValueReader::XLSX::Backend::LibXML;
 use utf8;
-use 5.10.1;
+use 5.12.1;
 use Moose;
 use Scalar::Util qw/looks_like_number/;
 use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS

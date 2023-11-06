@@ -1,13 +1,13 @@
 package Excel::ValueReader::XLSX::Backend::Regex;
 use utf8;
-use 5.10.1;
+use 5.12.1;
 use Moose;
 use Scalar::Util qw/looks_like_number/;
 use Carp         qw/croak/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
@@ -289,3 +289,5 @@ Copyright 2020-2023 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=cut
