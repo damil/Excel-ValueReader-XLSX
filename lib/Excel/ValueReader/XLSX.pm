@@ -203,8 +203,9 @@ sub table {
   # if called with a table name, derive all other args from internal workbook info
   if (my $table_name = delete $args{name}) {
     !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
-    @args{@table_info_fields} = @{$self->backend->table_info->{$table_name}}
-      or croak "no table info for table: $table_name";
+    my $table_info = $self->backend->table_info->{$table_name}
+      or croak "the Excel file contains no table named '$table_name'";
+    @args{@table_info_fields} = @$table_info;
   }
 
   # check args
