@@ -7,7 +7,7 @@ use Date::Calc            qw/Add_Delta_Days/;
 use POSIX                 qw/strftime modf/;
 use Carp                  qw/croak/;
 
-our $VERSION = '1.13';
+our $VERSION = '1.14';
 
 #======================================================================
 # ATTRIBUTES
@@ -204,7 +204,7 @@ sub table {
   if (my $table_name = delete $args{name}) {
     !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
     my $table_info = $self->backend->table_info->{$table_name}
-      or croak "the Excel file contains no table named '$table_name'";
+      or croak sprintf "Excel file '%s' contains no table named '%s'", $self->xlsx, $table_name;
     @args{@table_info_fields} = @$table_info;
   }
 
