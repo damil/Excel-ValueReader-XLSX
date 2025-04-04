@@ -18,6 +18,7 @@ my $builder = Module::Build->new(
       'Date::Calc'                => 0,
       'POSIX'                     => 0,
       'Scalar::Util'              => 0,
+      'Iterator::Simple'          => 0,
      },
     recommends => {
       'XML::LibXML::Reader'       => 0,

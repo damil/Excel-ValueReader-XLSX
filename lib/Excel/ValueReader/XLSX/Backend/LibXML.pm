@@ -7,8 +7,6 @@ use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
-our $VERSION = '1.15';
-
 #======================================================================
 # LAZY ATTRIBUTE CONSTRUCTORS
 #======================================================================
@@ -151,13 +149,17 @@ sub _xml_reader_for_zip_member {
 }
 
 
-sub values {
-  my ($self, $sheet) = @_;
+sub _values {
+  my ($self, $sheet, $want_iterator) = @_;
+
+  !$want_iterator
+    or die "iterator functions are not implemented in the LibXML backend. Use the Regex backend";
 
   # prepare for traversing the XML structure
   my $has_date_formatter = $self->frontend->date_formatter;
   my $sheet_member_name  = $self->_zip_member_name_for_sheet($sheet);
   my $xml_reader         = $self->_xml_reader_for_zip_member($sheet_member_name);
+  my $A1_to_num          = $self->frontend->can('A1_to_num'); # for direct invocation as a sub()
   my @data;
   my ($row, $col) = (0, 0);
   my ($cell_type, $cell_style, $seen_node);
@@ -181,8 +183,8 @@ sub values {
       # new cell node : store its col/row reference and its type
       my $A1_cell_ref = $xml_reader->getAttribute('r');
       ($col, $row)    = $A1_cell_ref ? do {my ($c, $r) = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
-                                           ($self->A1_to_num($c), $r  )}
-                                     :     ($col+1,               $row);
+                                           ($A1_to_num->(undef, $c), $r  )}
+                                     :     ($col+1,                  $row);
       $cell_type      = $xml_reader->getAttribute('t');
       $cell_style     = $xml_reader->getAttribute('s');
       $seen_node      = '';

@@ -2,31 +2,33 @@ package Excel::ValueReader::XLSX;
 use 5.12.1;
 use utf8;
 use Moose;
-use Module::Load          qw/load/;
-use Date::Calc            qw/Add_Delta_Days/;
-use POSIX                 qw/strftime modf/;
-use Carp                  qw/croak/;
+use Moose::Util::TypeConstraints qw/union/;
+use Module::Load                 qw/load/;
+use Date::Calc                   qw/Add_Delta_Days/;
+use POSIX                        qw/strftime modf/;
+use Carp                         qw/croak/;
+use Iterator::Simple             qw/iter/;
 
-our $VERSION = '1.15';
+our $VERSION = '1.16';
 
 #======================================================================
-# ATTRIBUTES
+# TYPES AND ATTRIBUTES
 #======================================================================
+
+# TYPES
+my $XlsxSource = union([qw/Str FileHandle/]);
 
 # PUBLIC ATTRIBUTES
-has 'xlsx'            => (is => 'ro', isa => 'Str|FileHandle', required => 1);      # path of xlsx file
-has 'using'           => (is => 'ro', isa => 'Str', default => 'Regex'); # name of backend class
-has 'date_format'     => (is => 'ro', isa => 'Str', default => '%d.%m.%Y');
-has 'time_format'     => (is => 'ro', isa => 'Str', default => '%H:%M:%S');
+has 'xlsx'            => (is => 'ro', isa => $XlsxSource,      required => 1);      # path of xlsx file
+has 'using'           => (is => 'ro', isa => 'Str',            default => 'Regex'); # name of backend class
+has 'date_format'     => (is => 'ro', isa => 'Str',            default => '%d.%m.%Y');
+has 'time_format'     => (is => 'ro', isa => 'Str',            default => '%H:%M:%S');
 has 'datetime_format' => (is => 'ro', isa => 'Str',            builder => '_datetime_format', lazy => 1);
-has 'date_formatter'  => (is => 'ro', isa => 'Maybe[CodeRef]', builder => '_date_formatter', lazy => 1);
-
-
+has 'date_formatter'  => (is => 'ro', isa => 'Maybe[CodeRef]', builder => '_date_formatter',  lazy => 1);
 
 # ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
-has 'backend'         => (is => 'ro',   isa => 'Object', init_arg => undef,
-                          builder => '_backend', lazy => 1,
-                          handles => [qw/values base_year sheets active_sheet/]);
+has 'backend'         => (is => 'ro', isa => 'Object',         builder => '_backend',         lazy => 1,
+                          init_arg => undef, handles => [qw/base_year sheets active_sheet/]);
 
 #======================================================================
 # BUILDING
@@ -37,16 +39,14 @@ around BUILDARGS => sub {
   my $orig  = shift;
   my $class = shift;
 
-  return ( @_ == 1 && !ref $_[0] ) ? $class->$orig(xlsx => $_[0])
-                                   : $class->$orig(@_);
+  return @_ == 1 && $XlsxSource->check($_[0])  ? $class->$orig(xlsx => $_[0])
+                                               : $class->$orig(@_);
 };
-
 
 
 #======================================================================
 # ATTRIBUTE CONSTRUCTORS
 #======================================================================
-
 
 sub _backend {
   my $self = shift;
@@ -99,27 +99,47 @@ sub _date_formatter {
 sub sheet_names {
   my ($self) = @_;
 
-  my $sheets = $self->sheets; # arrayref of shape {$name => $sheet_position}
+  my $sheets = $self->sheets; # hashref of shape {$name => $sheet_position}
 
   my @sorted_names = sort {$sheets->{$a} <=> $sheets->{$b}} keys %$sheets;
   return @sorted_names;
 }
 
 
+sub values  { my ($self, $sheet) = @_; $self->backend->_values($sheet, 0)}
+sub ivalues { my ($self, $sheet) = @_; $self->backend->_values($sheet, 1)}
+
+
 sub A1_to_num { # convert Excel A1 reference format to a number
-  my ($self, $string) = @_;
+  # my ($self, $string) = @_; # speed optimization : no unpacking of args, just access $_[1] directly
 
-  # ordinal number for character just before 'A'
-  state $base = ord('A') - 1;
+  state $base = ord('A') - 1; 
 
-  # iterate on 'digits' (letters of the A1 cell reference)
   my $num = 0;
-  foreach my $digit (map {ord($_) - $base} split //, $string) {
-    $num = $num*26 + $digit;
+  foreach my $digit (unpack "C*", $_[1]) {
+    $num = $num*26 + $digit-$base;
   }
 
   return $num;
 }
+
+
+sub range_from_ref { # convert a range reference like 'C9:E21' into ($col1, $row1, $col2, $row2)
+  my ($self, $ref) = @_;
+
+  $ref =~ /^([A-Z]+)(\d+)                       # mandatory 1st col and row
+           (?:                                  # .. optionally followed by
+              :                                 # colon
+              ([A-Z]+)(\d+)                     # and 2nd col and row
+            )?$/x
+    or croak "->range_from_ref($ref) : invalid ref";
+
+  my @range         = ($self->A1_to_num($1), $2); # col, row of topleft cell
+  push @range, ($3 ? ($self->A1_to_num($3), $4)   # col, row of bottomright cell, or ..
+                   : @range);                     # .. copy of topleft cell
+  return @range;
+}
+
 
 
 sub formatted_date {
@@ -194,13 +214,19 @@ my @table_info_fields = qw/sheet table_id ref columns no_headers/;
 # the same fields are also the valid args for the method call
 my $is_valid_arg      = "^(" . join("|", @table_info_fields) . ")\$";
 
-sub table {
-  my $self = shift;
+
+sub table  {shift->_table(0, @_);} # 0 = does not want an iterator, just a regular arrayref
+sub itable {shift->_table(1, @_);} # 1 = does want an iterator
+
+
+sub _table {
+  my $self          = shift;
+  my $want_iterator = shift;
 
   # syntactic sugar : ->table('foo') is treated as ->table(name => 'foo')
   my %args = @_ == 1 ? (name => $_[0]) : @_;
 
-  # if called with a table name, derive all other args from internal workbook info
+  # if called with a table name, derive all other args from the internal workbook info
   if (my $table_name = delete $args{name}) {
     !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
     my $table_info = $self->backend->table_info->{$table_name}
@@ -212,55 +238,58 @@ sub table {
   my @invalid_args = grep {!/$is_valid_arg/} keys %args;
   croak "invalid args to table(): " . join ", ", @invalid_args if @invalid_args;
 
-  # get raw values from the sheet
-  my $values = $self->values($args{sheet});
+  # get values from the sheet
+  my ($sheet_ref, $vals_or_it) = $want_iterator ? $self->ivalues($args{sheet})
+                                                : $self->values($args{sheet});
 
-  # restrict values to the table subrange (if applicable)
-  $values = $self->_subrange($values, $args{ref}) if $args{ref};
+  # table boundaries 
+  my ($scol1, $srow1, $scol2, $srow2) = $self->range_from_ref($sheet_ref);
+  my ($tcol1, $trow1, $tcol2, $trow2) = $self->range_from_ref($args{ref});
+  my $skip_initial_rows               = $trow1 - $srow1;
+  my $keep_rows                       = $trow2 - $trow1 + 1;
+  my $skip_initial_cols               = $tcol1 - $scol1;
+  my $keep_cols                       = $tcol2 - $tcol1 + 1;
 
-  # take headers from first row if not already given in $args{columns}
-  $args{columns} //= $values->[0];
-
-  # if this table has headers (which is almost always the case), drop the header row
-  shift @$values unless $args{no_headers};
-
-  # build a table of hashes. This could be done with a simple map(), but using a loop
-  # avoids to store 2 copies of cell values in memory : @$values is shifted when @table is pushed.
-  my @cols = @{$args{columns}};
-  croak "table contains undefined columns" if grep {!defined $_} @cols;
-  my @rows;
-  while (my $vals = shift @$values) {
-    my %row;
-    @row{@cols} = @$vals;
-    push @rows, \%row;
+  # skip initial rows if the table does not start at top row
+  if ($skip_initial_rows) {
+    if ($want_iterator) {$vals_or_it->() while $skip_initial_rows-- > 0;}
+    else                {splice @$vals_or_it, 0, $skip_initial_rows}
   }
 
-  # in scalar context, just return the rows. In list context, also return the column names
-  return wantarray ? (\@cols, \@rows) : \@rows;
-}
-
-
-
-sub _subrange {
-  my ($self, $values, $ref) = @_;
-
-  # parse rows and columns from the $ref string (of shape like for example "A1:D34")
-  my ($col1, $row1, $col2, $row2) = $ref =~ /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/
-    or croak "_subrange : invalid ref: $ref";
-
-  # restrict to the row range
-  if ($row1 > 1 || $row2 < @$values){
-    $values = [ @$values[$row1-1 .. $row2-1] ];
+  # read headers from first row -- even if this may be redundant with the 'columns' list declared in the table description
+  my $headers;
+  unless ($args{no_headers}) {
+    $keep_rows--; 
+    $headers = $want_iterator ? $vals_or_it->() : shift @$vals_or_it;
+    splice @$headers, 0, $skip_initial_cols if $skip_initial_cols;
+    splice @$headers, $keep_cols;
   }
+  $args{columns} //= $headers;
+  croak "table contains undefined columns" if grep {!defined $_} @{$args{columns}};
 
-  # restrict to the column range
-  my @col_nums = map {$self->A1_to_num($_) - 1} ($col1, $col2);
-  if ($col_nums[0] > 0){
-    my @col_range = ($col_nums[0] .. $col_nums[1]);
-    $values = [map { [ @$_[@col_range] ]} @$values];
-  }
+  # compute the return value -- either an iterator over table records, or an arrayref of table records.
+  # Both versions are very similar, but the code is duplicated instead of going through a subroutine,
+  # because an additional sub call over thousands of rows would cost additional CPU time.
+  my $retval = $want_iterator
+    ? iter(sub { while (1) {
+                   $keep_rows-- and my $vals = $vals_or_it->() or return;      # no more records -- end of iterator
+                   splice @$vals, 0, $skip_initial_cols if $skip_initial_cols;
+                   my %record;
+                   @record{@{$args{columns}}} = @$vals;
+                   return \%record;                                            # current iteration successful
+                 }
+               })
+    : do { my @records;
+           while ($keep_rows-- and my $vals = shift @$vals_or_it) {
+             splice @$vals, 0, $skip_initial_cols if $skip_initial_cols;
+             my %record;
+             @record{@{$args{columns}}} = @$vals;
+             push @records, \%record;
+           }
+           \@records;
+         };
 
-  return $values;
+  return ($args{columns}, $retval);
 }
 
 
@@ -299,6 +328,24 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
   }
   
   my $first_grid = $reader->values(1); # if using numerical indices, start at 1
+
+
+  # new API
+  my ($grid, @dimensions) = $reader->values($sheet);
+   my ($first_row, $last_row, $first_col, $last_col) = @dimensions;
+
+
+  my $range         = $reader->range("Sheet1");
+  my $vals          = $range->values;
+  my $records       = $range->records;
+  my $sheet_name    = $range->sheet_name;
+  my $sheet_num     = $range->sheet_num;
+  my ($row1, $row2) = $range->rows;
+  my ($col1, $col2) = $range->cols;
+
+
+ ?? $table->headers, ->data, ->totals
+
 
 =head1 DESCRIPTION
 

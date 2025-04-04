@@ -6,14 +6,11 @@ use Archive::Zip 1.61     qw(AZ_OK);
 use Carp                  qw/croak/;
 use Scalar::Util          qw/openhandle/;
 
-our $VERSION = '1.15';
-
 #======================================================================
 # ATTRIBUTES
 #======================================================================
 has 'frontend'      => (is => 'ro', isa => 'Excel::ValueReader::XLSX',
-                        required => 1, weak_ref => 1,
-                        handles => [qw/A1_to_num formatted_date/]);
+                        required => 1, weak_ref => 1, handles => [qw/formatted_date/]);
 
 my %lazy_attrs = ( zip             => 'Archive::Zip',
                    date_styles     => 'ArrayRef',
@@ -82,8 +79,11 @@ sub _sheet_for_table {
   return \@sheet_for_table;
 }
 
+for my $abstract_meth (qw/_date_styles _strings _workbook_data/) {
+  no strict 'refs';
+  *{$abstract_meth} = sub {die "->$abstract_meth() should be implemented in subclass"}
+}
 
-# attribute constructors for _date_styles, _strings and _workbook_data are supplied in subclasses
 
 #======================================================================
 # METHODS
