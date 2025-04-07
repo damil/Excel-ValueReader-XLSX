@@ -51,13 +51,14 @@ sub _table_info {
   my %table_info;
   my @table_members = $self->zip->membersMatching(qr[^xl/tables/table\d+\.xml$]);
   foreach my $table_member (map {$_->fileName} @table_members) {
-    my ($table_id)     = $table_member =~ /table(\d+)\.xml/;
-    my $table_xml      = $self->_zip_member_contents($table_member);
-    my ($name, $ref, $table_columns, $no_headers)
-                       = $self->_parse_table_xml($table_xml); # defined in subclass
-    my $sheet_id       = $self->sheet_for_table->[$table_id]
+    my ($table_id)            = $table_member =~ /table(\d+)\.xml/;
+    my $table_xml             = $self->_zip_member_contents($table_member);
+    my $this_table_info       = $self->_parse_table_xml($table_xml); # defined in subclass
+    $this_table_info->{id}    = $table_id;
+    $this_table_info->{sheet} = $self->sheet_for_table->[$table_id]
       or croak "could not find sheet id for table $table_id";
-    $table_info{$name} = [$sheet_id, $table_id, $ref, $table_columns, $no_headers];
+
+    $table_info{$this_table_info->{name}}  = $this_table_info;
   }
 
   return \%table_info;

@@ -2,8 +2,8 @@ package Excel::ValueReader::XLSX::Backend::Regex;
 use utf8;
 use 5.12.1;
 use Moose;
-use Scalar::Util     qw/looks_like_number/;
-use Iterator::Simple qw/iter/;
+use Scalar::Util             qw/looks_like_number/;
+use Iterator::Simple         qw/iter/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
@@ -192,13 +192,15 @@ sub _values {
         # deal with the row number given in the 'r' attribute, if present
         $given_row //= $row_num;
         !($given_row < $row_num) or die "cell claims to be in row $given_row while current row is $row_num";
-        $given_row > $row_num and do {push @rows, [] for 1 .. $given_row-$row_num;
-                                      $col_num = 0;
-                                      $row_num = $given_row};
+        if ($given_row > $row_num) {
+          push @rows, [] for 1 .. $given_row-$row_num;
+          $col_num = 0;
+          $row_num = $given_row;
+        }
 
         # deal with the col number given in the 'r' attribute, if present
-        if ($col_A1) {$col_num = 0; $col_num = $col_num*26 + $_-64 foreach unpack "C*", $col_A1}
-                      # above: equivalent to $col_num = $self->A1_to_num($col_A1), but faster
+        if ($col_A1) {$col_num = $Excel::ValueReader::XLSX::A1_to_num_memoized{$col_A1}
+                             //= Excel::ValueReader::XLSX->A1_to_num($col_A1)}
         else         {$col_num++}
 
         # handle the cell value according to cell type
@@ -257,19 +259,19 @@ sub _parse_table_xml {
     or die "invalid table XML: $xml";
 
   # extract relevant attributes
-  my $name        = $table_attrs->{displayName};
-  my $ref         = $table_attrs->{ref};
-  my $no_headers  = exists $table_attrs->{headerRowCount} && !$table_attrs->{headerRowCount};
-  my $with_totals = $table_attrs->{totalsRowCount}; # TODO : use this info
+  my %table_info = (
+    name       => $table_attrs->{displayName},
+    ref        => $table_attrs->{ref},
+    no_headers => exists $table_attrs->{headerRowCount} && !$table_attrs->{headerRowCount},
+    has_totals => $table_attrs->{totalsRowCount},
+    columns    => [$xml =~ m{<tableColumn [^>]+? name="([^"]+)"}gx],
+   );
 
-
-  # column names. Other attributes from <tableColumn> nodes are ignored.
-  my @columns = ($xml =~ m{<tableColumn [^>]+? name="([^"]+)"}gx);
 
   # decode entites for all string values
-  _decode_xml_entities($_) for $name, @columns;
+  _decode_xml_entities($_) for $table_info{name}, @{$table_info{columns}};
 
-  return ($name, $ref, \@columns, $no_headers);
+  return \%table_info;
 }
 
 

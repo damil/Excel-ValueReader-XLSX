@@ -2,8 +2,8 @@ package Excel::ValueReader::XLSX::Backend::LibXML;
 use utf8;
 use 5.12.1;
 use Moose;
-use Scalar::Util qw/looks_like_number/;
-use XML::LibXML::Reader qw/XML_READER_TYPE_END_ELEMENT/;
+use Scalar::Util             qw/looks_like_number/;
+use XML::LibXML::Reader      qw/XML_READER_TYPE_END_ELEMENT/;
 
 extends 'Excel::ValueReader::XLSX::Backend';
 
@@ -159,10 +159,10 @@ sub _values {
   my $has_date_formatter = $self->frontend->date_formatter;
   my $sheet_member_name  = $self->_zip_member_name_for_sheet($sheet);
   my $xml_reader         = $self->_xml_reader_for_zip_member($sheet_member_name);
-  my $A1_to_num          = $self->frontend->can('A1_to_num'); # for direct invocation as a sub()
+
   my @data;
   my ($row, $col) = (0, 0);
-  my ($cell_type, $cell_style, $seen_node);
+  my ($ref, $cell_type, $cell_style, $seen_node);
 
   # iterate through XML nodes
  NODE:
@@ -173,7 +173,10 @@ sub _values {
     last NODE if $node_name eq 'sheetData' && $node_type == XML_READER_TYPE_END_ELEMENT;
     next NODE if $node_type == XML_READER_TYPE_END_ELEMENT;
 
-    if ($node_name eq 'row') {
+    if ($node_name eq 'dimension') {
+      $ref = $xml_reader->getAttribute('ref');
+    }
+    elsif ($node_name eq 'row') {
       my $row_num = $xml_reader->getAttribute('r');
       $row        = $row_num // $row + 1;
       $col        = 0;
@@ -182,9 +185,10 @@ sub _values {
     if ($node_name eq 'c') {
       # new cell node : store its col/row reference and its type
       my $A1_cell_ref = $xml_reader->getAttribute('r');
-      ($col, $row)    = $A1_cell_ref ? do {my ($c, $r) = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
-                                           ($A1_to_num->(undef, $c), $r  )}
-                                     :     ($col+1,                  $row);
+      ($col, $row)    = $A1_cell_ref
+        ? do {my ($c, $r) = ($A1_cell_ref =~ /^([A-Z]+)(\d+)$/);
+              ($Excel::ValueReader::XLSX::A1_to_num_memoized{$c} //= Excel::ValueReader::XLSX->A1_to_num($c), $r  )}
+        :     ($col+1,                                                                                        $row);
       $cell_type      = $xml_reader->getAttribute('t');
       $cell_style     = $xml_reader->getAttribute('s');
       $seen_node      = '';
@@ -253,7 +257,7 @@ sub _values {
   # insert arrayrefs for empty rows
   $_ //= [] foreach @data;
 
-  return \@data;
+  return ($ref, \@data);
 }
 
 
@@ -289,7 +293,7 @@ sub _table_targets {
 sub _parse_table_xml {
   my ($self, $xml) = @_;
 
-  my ($name, $ref, $no_headers, @columns);
+  my %table_info;
 
   my $xml_reader = $self->_xml_reader($xml);
 
@@ -301,16 +305,20 @@ sub _parse_table_xml {
     next NODE if $node_type == XML_READER_TYPE_END_ELEMENT;
 
     if ($node_name eq 'table') {
-      $name       = $xml_reader->getAttribute('displayName');
-      $ref        = $xml_reader->getAttribute('ref');
-      $no_headers = ($xml_reader->getAttribute('headerRowCount') // "") eq "0";
+      %table_info = (
+        name       => $xml_reader->getAttribute('displayName'),
+        ref        => $xml_reader->getAttribute('ref'),
+        no_headers => do {my $has_headers = $xml_reader->getAttribute('headerRowCount');
+                          defined $has_headers && !$has_headers},
+        has_totals => $xml_reader->getAttribute('totalsRowCount'),
+       );
     }
     elsif ($node_name eq 'tableColumn') {
-      push @columns, $xml_reader->getAttribute('name');
+      push @{$table_info{columns}}, $xml_reader->getAttribute('name');
     }
   }
 
-  return ($name, $ref, \@columns, $no_headers);
+  return \%table_info
 }
 
 

@@ -9,7 +9,12 @@ use POSIX                        qw/strftime modf/;
 use Carp                         qw/croak/;
 use Iterator::Simple             qw/iter/;
 
-our $VERSION = '1.16';
+#======================================================================
+# GLOBALS
+#======================================================================
+
+our $VERSION            = '1.16';
+our %A1_to_num_memoized;
 
 #======================================================================
 # TYPES AND ATTRIBUTES
@@ -28,7 +33,7 @@ has 'date_formatter'  => (is => 'ro', isa => 'Maybe[CodeRef]', builder => '_date
 
 # ATTRIBUTES USED INTERNALLY, NOT DOCUMENTED
 has 'backend'         => (is => 'ro', isa => 'Object',         builder => '_backend',         lazy => 1,
-                          init_arg => undef, handles => [qw/base_year sheets active_sheet/]);
+                          init_arg => undef, handles => [qw/base_year sheets active_sheet table_info/]);
 
 #======================================================================
 # BUILDING
@@ -110,36 +115,6 @@ sub values  { my ($self, $sheet) = @_; $self->backend->_values($sheet, 0)}
 sub ivalues { my ($self, $sheet) = @_; $self->backend->_values($sheet, 1)}
 
 
-sub A1_to_num { # convert Excel A1 reference format to a number
-  # my ($self, $string) = @_; # speed optimization : no unpacking of args, just access $_[1] directly
-
-  state $base = ord('A') - 1; 
-
-  my $num = 0;
-  foreach my $digit (unpack "C*", $_[1]) {
-    $num = $num*26 + $digit-$base;
-  }
-
-  return $num;
-}
-
-
-sub range_from_ref { # convert a range reference like 'C9:E21' into ($col1, $row1, $col2, $row2)
-  my ($self, $ref) = @_;
-
-  $ref =~ /^([A-Z]+)(\d+)                       # mandatory 1st col and row
-           (?:                                  # .. optionally followed by
-              :                                 # colon
-              ([A-Z]+)(\d+)                     # and 2nd col and row
-            )?$/x
-    or croak "->range_from_ref($ref) : invalid ref";
-
-  my @range         = ($self->A1_to_num($1), $2); # col, row of topleft cell
-  push @range, ($3 ? ($self->A1_to_num($3), $4)   # col, row of bottomright cell, or ..
-                   : @range);                     # .. copy of topleft cell
-  return @range;
-}
-
 
 
 sub formatted_date {
@@ -198,45 +173,31 @@ sub formatted_date {
 sub table_names {
   my ($self) = @_;
 
-  my $table_info = $self->backend->table_info;
+  my $table_info = $self->table_info;
 
   # sort on table id (field [1] in table_info arrayrefs)
-  my @table_names = sort {$table_info->{$a}[1] <=> $table_info->{$b}->[1]} keys %$table_info;
+  my @table_names = sort {$table_info->{$a}{id} <=> $table_info->{$b}{id}} keys %$table_info;
 
   return @table_names;
 }
 
-
-# info fields returned from the backend parsing methods
-my @table_info_fields = qw/sheet table_id ref columns no_headers/;
-
-
-# the same fields are also the valid args for the method call
-my $is_valid_arg      = "^(" . join("|", @table_info_fields) . ")\$";
-
-
 sub table  {shift->_table(0, @_);} # 0 = does not want an iterator, just a regular arrayref
 sub itable {shift->_table(1, @_);} # 1 = does want an iterator
-
 
 sub _table {
   my $self          = shift;
   my $want_iterator = shift;
 
   # syntactic sugar : ->table('foo') is treated as ->table(name => 'foo')
-  my %args = @_ == 1 ? (name => $_[0]) : @_;
+  unshift @_, 'name' if scalar(@_) % 2;
+  my %args = @_;
 
   # if called with a table name, derive all other args from the internal workbook info
   if (my $table_name = delete $args{name}) {
-    !$args{$_} or croak "table() : arg '$_' is incompatible with 'name'"  for @table_info_fields;
-    my $table_info = $self->backend->table_info->{$table_name}
+    my $table_info = $self->table_info->{$table_name}
       or croak sprintf "Excel file '%s' contains no table named '%s'", $self->xlsx, $table_name;
-    @args{@table_info_fields} = @$table_info;
+    $args{$_} //= $table_info->{$_} for keys %$table_info;
   }
-
-  # check args
-  my @invalid_args = grep {!/$is_valid_arg/} keys %args;
-  croak "invalid args to table(): " . join ", ", @invalid_args if @invalid_args;
 
   # get values from the sheet
   my ($sheet_ref, $vals_or_it) = $want_iterator ? $self->ivalues($args{sheet})
@@ -249,6 +210,9 @@ sub _table {
   my $keep_rows                       = $trow2 - $trow1 + 1;
   my $skip_initial_cols               = $tcol1 - $scol1;
   my $keep_cols                       = $tcol2 - $tcol1 + 1;
+
+  # if a totals row is present, skip it, unless the 'with_totals' arg is present
+  $keep_rows -=1 if $args{has_totals} and !$args{with_totals};
 
   # skip initial rows if the table does not start at top row
   if ($skip_initial_rows) {
@@ -267,30 +231,59 @@ sub _table {
   $args{columns} //= $headers;
   croak "table contains undefined columns" if grep {!defined $_} @{$args{columns}};
 
-  # compute the return value -- either an iterator over table records, or an arrayref of table records.
-  # Both versions are very similar, but the code is duplicated instead of going through a subroutine,
-  # because an additional sub call over thousands of rows would cost additional CPU time.
-  my $retval = $want_iterator
-    ? iter(sub { while (1) {
-                   $keep_rows-- and my $vals = $vals_or_it->() or return;      # no more records -- end of iterator
-                   splice @$vals, 0, $skip_initial_cols if $skip_initial_cols;
-                   my %record;
-                   @record{@{$args{columns}}} = @$vals;
-                   return \%record;                                            # current iteration successful
-                 }
-               })
-    : do { my @records;
-           while ($keep_rows-- and my $vals = shift @$vals_or_it) {
-             splice @$vals, 0, $skip_initial_cols if $skip_initial_cols;
-             my %record;
-             @record{@{$args{columns}}} = @$vals;
-             push @records, \%record;
-           }
-           \@records;
-         };
+  # dual closure : can be used as an iterator or compute all values in one call
+  my @records;
+  my $get_values = sub {
+    while (1) {
+      $keep_rows--
+        and my $vals = $want_iterator ? $vals_or_it->() : shift @$vals_or_it
+        or  return;                                                           # no more records -- end of iterator
+      splice @$vals, 0, $skip_initial_cols if $skip_initial_cols;
+      my %record;
+      @record{@{$args{columns}}} = @$vals;
+      if ($want_iterator) {return \%record}                                   # current iteration successful
+      else                {push @records, \%record};
+    }
+  };
 
-  return ($args{columns}, $retval);
+  # return either an iterator or the accumulated table records
+  return ($args{columns}, $want_iterator ? iter($get_values)
+                                         : do {$get_values->(); \@records});
 }
+
+
+
+sub A1_to_num { # convert Excel A1 reference format to a number
+  my ($self, $A1) = @_;
+  my $num = 0;
+  foreach my $digit (unpack "C*", $A1) {
+    $num = $num*26 + $digit-64;
+  }
+
+  return $num;
+}
+
+
+sub range_from_ref { # convert a range reference like 'C9:E21' into ($col1, $row1, $col2, $row2)
+  my ($self, $range) = @_;
+
+  $range =~ /^([A-Z]+)(\d+)                       # mandatory 1st col and row
+              (?:                                  # .. optionally followed by
+                 :                                 # colon
+                 ([A-Z]+)(\d+)                     # and 2nd col and row
+               )?
+              $/x
+     or croak "->range_from_ref($range) : invalid ref";
+
+  my @range        = ($A1_to_num_memoized{$1} //= $self->A1_to_num($1), $2); # col, row of topleft cell
+  push @range, ($3 ? ($A1_to_num_memoized{$3} //= $self->A1_to_num($3), $4)  # col, row of bottomright cell, or ..
+                   : @range);                                                # .. copy of topleft cell
+  return @range;
+}
+
+
+
+
 
 
 1;

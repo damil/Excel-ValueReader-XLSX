@@ -9,7 +9,10 @@ use Clone                          qw/clone/;
 use Module::Load::Conditional 0.66 qw/check_install/;
 use Iterator::Simple               qw/list/;
 
+use lib "../lib";
 use Excel::ValueReader::XLSX;
+
+
 note "testing Excel::ValueReader::XLSX version $Excel::ValueReader::XLSX::VERSION";
 
 (my $tst_dir = $0) =~ s/valuereader\.t$//;
@@ -154,7 +157,8 @@ my @expected_mappe = (
 );
 
 
-my @expected_tab_names = qw(Entities tab_foobar tab_in_middle_of_sheet tab_without_headers Cols_with_entities);
+my @expected_tab_names = qw(Entities tab_foobar tab_in_middle_of_sheet tab_without_headers
+                            Cols_with_entities HasTotals);
 
 
 my @expected_tab_foobar = (
@@ -178,6 +182,18 @@ my @expected_tab_cols_with_entities = (
 );
 
 
+my @expected_tab_HasTotals = (
+  {x => 11, y => 22, z => 33},
+  {x => 44, y => 55, z => 66},
+  {x => 77, y => 88, z => 99},
+);
+
+my @expected_tab_HasTotals_incl_totals = (
+  @expected_tab_HasTotals,
+  {x => 77, y =>  3, z => 198},
+ );
+
+
 my @expected_tab_by_ref = (
   {Name => 'amp', Char => '&'},
   {Name => 'gt',  Char => '>'},
@@ -196,25 +212,19 @@ my @expected_without_r = (
 
 
 my @backends = ('Regex');
-# push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
+push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
 
-foreach my $backend (@backends) {
+# regular tests on values and tables
+run_tests(file => $xl_file, $_, qw/values table/) foreach @backends;
 
-  # directly supply pathname
-  run_tests(file => $xl_file, $backend, qw/values table/);
-
-  # using iterators
-  run_tests(file => $xl_file, $backend, sub {list(scalar shift->ivalues(@_))},
-                                        sub {my ($cols, $it) = shift->itable(@_); ($cols, list($it))});
-
-
-
-
+# iterator tests -- only for the Regex backend
+run_tests(file => $xl_file, 'Regex', sub {list(scalar shift->ivalues(@_))},
+                                     sub {my ($cols, $it) = shift->itable(@_); ($cols, list($it))});
 
   # # open file and pass a filehandle
   # open my $fh, "<:raw", $xl_file or die "could not open $xl_file: $!";
   # run_tests(handle => $fh, $backend);
-}
+
 
 
 
@@ -276,6 +286,13 @@ sub run_tests {
 
   my $tab_cols_with_entities = $reader->$table_meth('Cols_with_entities');
   is_deeply($tab_cols_with_entities, \@expected_tab_cols_with_entities, "tab_cols_with_entities, using $context");
+
+  my $tab_has_totals = $reader->$table_meth('HasTotals');
+  is_deeply($tab_has_totals, \@expected_tab_HasTotals, "tab_HasTotals, using $context");
+
+  my $tab_has_totals_incl_totals = $reader->$table_meth('HasTotals', with_totals => 1);
+  is_deeply($tab_has_totals_incl_totals, \@expected_tab_HasTotals_incl_totals, "tab_HasTotals with_totals=>1, using $context");
+
 
   my $tab_by_ref = $reader->$table_meth(sheet => "Entities", ref => "B1:C4");
   is_deeply($tab_by_ref, \@expected_tab_by_ref, "tab_by_ref");
