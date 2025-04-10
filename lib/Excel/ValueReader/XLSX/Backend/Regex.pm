@@ -191,12 +191,11 @@ sub _values {
 
         # deal with the row number given in the 'r' attribute, if present
         $given_row //= $row_num;
-        !($given_row < $row_num) or die "cell claims to be in row $given_row while current row is $row_num";
-        if ($given_row > $row_num) {
-          push @rows, [] for 1 .. $given_row-$row_num;
-          $col_num = 0;
-          $row_num = $given_row;
-        }
+        if    ($given_row < $row_num) {die "cell claims to be in row $given_row while current row is $row_num"}
+        elsif ($given_row > $row_num) {push @rows, [] for 1 .. $given_row-$row_num;
+                                       $col_num = 0;
+                                       $row_num = $given_row;}
+
 
         # deal with the col number given in the 'r' attribute, if present
         if ($col_A1) {$col_num = $Excel::ValueReader::XLSX::A1_to_num_memoized{$col_A1}

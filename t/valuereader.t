@@ -8,8 +8,6 @@ use Scalar::Util                   qw/looks_like_number/;
 use Clone                          qw/clone/;
 use Module::Load::Conditional 0.66 qw/check_install/;
 use Iterator::Simple               qw/list/;
-
-use lib "../lib";
 use Excel::ValueReader::XLSX;
 
 
@@ -214,26 +212,20 @@ my @expected_without_r = (
 my @backends = ('Regex');
 push @backends, 'LibXML' if check_install(module => 'XML::LibXML::Reader');
 
-# regular tests on values and tables
-run_tests(file => $xl_file, $_, qw/values table/) foreach @backends;
+foreach my $backend (@backends) { 
 
-# iterator tests -- only for the Regex backend
-run_tests(file => $xl_file, 'Regex', sub {list(scalar shift->ivalues(@_))},
-                                     sub {my ($cols, $it) = shift->itable(@_); ($cols, list($it))});
+  # regular tests on values and tables
+  run_tests($xl_file, $backend, qw/values table/);
 
-  # # open file and pass a filehandle
-  # open my $fh, "<:raw", $xl_file or die "could not open $xl_file: $!";
-  # run_tests(handle => $fh, $backend);
-
-
-
-
-
+  # iterator tests 
+  run_tests($xl_file, $backend, sub {list(scalar shift->ivalues(@_))},
+                                sub {my ($cols, $it) = shift->itable(@_); ($cols, list($it))});
+}
 
 sub run_tests {
-  my ($source_kind, $xl_source, $backend, $values_meth, $table_meth) = @_;
+  my ($xl_source, $backend, $values_meth, $table_meth) = @_;
 
-  my $context = "$backend (source: $source_kind)";
+  my $context = $backend;
   $context   .= "--iterator" if ref $values_meth;
 
   # dirty hack when testing with LibXML, because \r\n are silently transformed into \n
@@ -275,8 +267,11 @@ sub run_tests {
 
   is_deeply([$reader->table_names], \@expected_tab_names, "table names, using $context");
 
-  my $tab_foobar = $reader->$table_meth('tab_foobar');
+  my $tab_foobar = $reader->$table_meth('tab_foobar', want_records => 1); # arg useless, this is the default
   is_deeply($tab_foobar, \@expected_tab_foobar, "tab_foobar, using $context");
+
+  my $rows_foobar = $reader->$table_meth('tab_foobar', want_records => 0);
+  is_deeply($rows_foobar, [map {[@{$_}{qw/foo bar/}]} @expected_tab_foobar], "rows_foobar, using $context");
 
   my $tab_badambum = $reader->$table_meth('tab_in_middle_of_sheet');
   is_deeply($tab_badambum, \@expected_tab_badambum, "tab_badambum, using $context");
