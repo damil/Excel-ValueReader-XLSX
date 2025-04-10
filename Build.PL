@@ -18,6 +18,7 @@ my $builder = Module::Build->new(
       'Archive::Zip'              => "1.61",
       'Module::Load'              => 0,
       'Moose'                     => 0,
+      'MooseX::StrictConstructor' => 0,
       'Date::Calc'                => 0,
       'POSIX'                     => 0,
       'Scalar::Util'              => 0,
