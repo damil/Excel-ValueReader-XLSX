@@ -5,6 +5,8 @@ use Moose;
 use Archive::Zip 1.61     qw(AZ_OK);
 use Carp                  qw/croak/;
 use Scalar::Util          qw/openhandle/;
+use Encode                qw/decode/;
+
 
 #======================================================================
 # ATTRIBUTES
@@ -123,9 +125,8 @@ sub _zip_member_contents {
 
   my $contents = $self->zip->contents($member)
     or die "no contents for member $member";
-  utf8::decode($contents);
 
-  return $contents;
+  return decode('UTF-8', $contents);
 }
 
 sub _zip_member_name_for_sheet {

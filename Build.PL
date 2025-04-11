@@ -8,9 +8,6 @@ my $builder = Module::Build->new(
     dist_author         => 'Laurent Dami <dami@cpan.org>',
     dist_version_from   => 'lib/Excel/ValueReader/XLSX.pm',
 
-    # create_makefile_pl  => 'traditional',
-
-
     requires => {
       'perl'                      => "5.012001",
       'utf8'                      => 0,
@@ -41,9 +38,6 @@ my $builder = Module::Build->new(
         repository => 'https://github.com/damil/Excel-ValueReader-XLSX',
        }
      },
-
-    # xs_files             => { 'ConvertA1.xs' => 'ConvertA1.xs' },
-    # extra_compiler_flags => '-I.',  # Include current directory
 );
 
 $builder->create_build_script();

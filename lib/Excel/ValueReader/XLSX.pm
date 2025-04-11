@@ -183,6 +183,7 @@ sub table_names {
 sub table  {shift->_table(0, @_);} # 0 = does not want an iterator, just a regular arrayref
 sub itable {shift->_table(1, @_);} # 1 = does want an iterator
 
+my %valid_table_arg = map {$_ => 1} qw/name sheet ref columns no_headers with_totals want_records/;
 sub _table {
   my $self          = shift;
   my $want_iterator = shift;
@@ -192,8 +193,7 @@ sub _table {
   my %args = @_;
 
   # check for invalid args
-  state %valid_arg = map {$_ => 1} qw/name sheet ref columns no_headers with_totals want_records/;
-  my @invalid_args = grep {!$valid_arg{$_}} keys %args;
+  my @invalid_args = grep {!$valid_table_arg{$_}} keys %args;
   croak "invalid table args: ", join(", ", @invalid_args) if @invalid_args;
 
   # defaults
@@ -327,13 +327,14 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
            "column 'foo' in first row contains : ", $records->[0]{foo};
   }
   
-  my $first_grid = $reader->values(1); # if using numerical indices, first sheet is in position 1
+  my $first_grid = $reader->values(1); # the arg can be a sheet index instead of a sheet name
   
   # iterator version of ->values()
   my $iterator = $reader->ivalues($sheet_name);
   while (my $row = $iterator->()) { process_row($row) }
 
-  $iterator = $reader->itable($table_name);
+  # iterator version of ->table()
+  my ($columns, $iterator) = $reader->itable($table_name);
   while (my $record = $iterator->()) { process_record($record) }
 
 =head1 DESCRIPTION
@@ -341,12 +342,24 @@ Excel::ValueReader::XLSX - extracting values from Excel workbooks in XLSX format
 =head2 Purpose
 
 This module reads the contents of an Excel file in XLSX format.
-Unlike other modules like L<Spreadsheet::ParseXLSX> or L<Spreadsheet::XLSX>, 
-there is no support for reading formulas, formats or other Excel internal
+Unlike other modules like L<Spreadsheet::ParseXLSX> or L<Data::XLSX::Parser>, 
+this module has no support for reading formulas, formats or other Excel internal
 information; all you get are plain values -- but you get them much faster ! 
-Besides, this module also has support for parsing Excel tables, and also
-has an iterator API for getting one row at a time -- very useful for sparing
+
+Besides, this API has some features not found in concurrent parsers :
+
+=over
+
+=item *
+
+has support for parsing Excel tables
+
+=item *
+
+iterator methods for getting one row at a time from a worksheet or from a table -- very useful for sparing
 memory when dealing with large Excel files.
+
+=back
 
 
 =head2 Backends
@@ -357,12 +370,12 @@ Two different backends may be used for extracting values :
 
 =item Regex
 
-this backend uses regular expressions to parse the XML content.
+using regular expressions to parse the XML content.
 
 =item LibXML
 
-this backend uses L<XML::LibXML::Reader> to parse the XML content.
-It is probably safer but about three times slower than the Regex backend
+using L<XML::LibXML::Reader> to parse the XML content.
+It is probably safer but two to three times slower than the Regex backend
 (but still much faster than L<Spreadsheet::ParseXLSX>).
 
 =back
@@ -381,15 +394,15 @@ Microsoft Office object model.
 =head1 NOTE ON ITERATORS
 
 Methods L</ivalues> and L</itable> return I<iterators>.
-Each call to the iterator produces a new data row from the Excel content, until
-the end of data where the iterator returns C<undef>. Following L<Iterator::Simple> protocol,
-iterators support three different syntaxes but semantically equivalent :
+Each call to the iterator produces a new data row from the Excel content, until reaching
+the end of data where the iterator returns C<undef>. Following the L<Iterator::Simple> protocol,
+iterators support three different but semantically equivalent syntaxes :
 
   while (my $row = $iterator->())   { process($row) }
   
   while (my $row = $iterator->next) { process($row) }
   
-  while (my $row = <$iterator>)     { process($row) }
+  while (<$iterator>)               { process($_) }
 
 Working with iterators is especially interesting when dealing with large Excel files, because
 rows can be processed one at a time instead of being loaded all at once in memory. For example
@@ -506,7 +519,7 @@ Alternatively, these numbers can also be obtained through the L</range_from_ref>
   }
 
 Like the L</values> method, except that it returns an iterator instead of a fully populated data grid.
-Data rows must be retrieved through successive calls to the iterator.
+Data rows are retrieved through successive calls to the iterator.
 
 
 =head2 table_names
@@ -539,7 +552,7 @@ an arrayref of column names, and the second element is an arrayref of rows.
 In scalar context, the method just returns the arrayref of rows. 
 
 Rows are normally returned as hashrefs, where keys of the hashes correspond to column names
-in the table. Under option C<< want_records => >>, rows are returned as arrayrefs, and it is up
+in the table. Under option C<< want_records => 0>>, rows are returned as arrayrefs, and it is up
 to the client to make the correspondance with column names in C<$columns>.
 
 Instead of specifying a table name, it is also possible to give a sheet name or sheet number.
@@ -775,9 +788,7 @@ L<https://www.ecma-international.org/publications/standards/Ecma-376.htm>.
 Introductory material on XLSX file structure can be found at
 L<http://officeopenxml.com/anatomyofOOXML-xlsx.php>.
 
-The CPAN module L<Data::XLSX::Parser> is claimed to be in alpha stage;
-it seems to be working but the documentation is insufficient -- I had 
-to inspect the test suite to understand how to use it.
+Concurrent modules L<Spreadsheet::ParseXLSX> or L<Data::XLSX::Parser>.
 
 Another unpublished but working module for parsing Excel files in Perl
 can be found at L<https://github.com/jmcnamara/excel-reader-xlsx>.
@@ -788,26 +799,16 @@ through the L<DateTime::Format::Excel> module.
 
 =head1 BENCHMARKS
 
-Below are some benchmarks computed with the program C<benchmark.pl> in
-this distribution. The task was to parse an Excel file of five worksheets
-with about 62600 rows in total, and report the number of rows per sheet.
-Reported figures are in seconds.
+Below are some comparative figures. The task
+computed here was to read a large Excel file with 800131 rows of 7 columns,
+and report the total number of rows. Reported figures are in seconds.
 
-  Excel::ValueReader::XLSX::Regex    11 elapsed,  10 cpu, 0 system
-  Excel::ValueReader::XLSX::LibXML   35 elapsed,  34 cpu, 0 system
-  [unpublished] Excel::Reader::XLSX  39 elapsed,  37 cpu, 0 system
-  Spreadsheet::ParseXLSX            244 elapsed, 240 cpu, 1 system
-  Data::XLSX::Parser                 37 elapsed,  35 cpu, 0 system
-
-These figures show that the regex version is about 3 times faster
-than the LibXML version, and about 22 times faster than
-L<Spreadsheet::ParseXLSX>. Tests with a bigger file of about 90000 rows
-showed similar ratios.
-
-Modules
-C<Excel::Reader::XLSX> (unpublished) and L<Data::XLSX::Parser>
-are based on L<XML::LibXML> like L<Excel::ValueReader::XLSX::Backend::LibXML>;
-execution times for those three modules are very close.
+  Spreadsheet::ParseXLSX                     1272 elapsed, 870 cpu, 4 system
+  Data::XLSX::Parser                          125 elapsed, 107 cpu, 1 system
+  Excel::ValueReader::XLSX::Regex              40 elapsed,  32 cpu, 0 system
+  Excel::ValueReader::XLSX::Regex, iterator    34 elapsed,  30 cpu, 0 system
+  Excel::ValueReader::XLSX::LibXML            101 elapsed,  83 cpu, 0 system
+  Excel::ValueReader::XLSX::LibXML, iterator   91 elapsed,  80 cpu, 0 system
 
 =head1 ACKNOWLEDGMENTS
 
@@ -839,7 +840,7 @@ Laurent Dami, E<lt>dami at cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020-2023 by Laurent Dami.
+Copyright 2020-2025 by Laurent Dami.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
